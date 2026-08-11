@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1786333973836,
+      "tag": "0000_striped_sheva_callister",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1786334539519,
+      "tag": "0001_regular_raza",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786334725984,
+      "tag": "0002_dear_human_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1786335353199,
+      "tag": "0003_giant_jocasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1786335430606,
+      "tag": "0004_minor_pepper_potts",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1786365838439,
+      "tag": "0005_mighty_vindicator",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+ALTER TABLE `password_reset_tokens` ADD `deliveryChannel` enum('EMAIL','SELF_SERVICE') DEFAULT 'SELF_SERVICE' NOT NULL;--> statement-breakpoint
+ALTER TABLE `password_reset_tokens` ADD `deliveredAt` timestamp;
