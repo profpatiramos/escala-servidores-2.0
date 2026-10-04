@@ -81,7 +81,7 @@ export async function resolveUserScope(userId: number): Promise<{
   const db = await getDbOrThrow();
 
   const [userRow] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!userRow) throw invalidCredentials();
+  if (!userRow || userRow.status !== "ACTIVE") throw invalidCredentials();
 
   if (userRow.isPlatformAdmin) {
     return { role: "SUPER_ADMIN", parishId: null, responsibleId: null };
@@ -105,7 +105,7 @@ export async function resolveUserScope(userId: number): Promise<{
     });
   }
 
-  const priority: RoleName[] = ["PARISH_ADMIN", "COORDINATOR", "RESPONSIBLE"];
+  const priority: RoleName[] = ["PARISH_ADMIN", "COORDINATOR", "PRIEST", "RESPONSIBLE"];
   const chosen =
     priority.map(role => active.find(m => m.role === role)).find(Boolean) ?? active[0]!;
 

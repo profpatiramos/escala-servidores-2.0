@@ -11,7 +11,13 @@ import { Church, KeyRound, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -39,21 +45,29 @@ export default function Login() {
   const [resetEmail, setResetEmail] = useState("");
 
   const passwordLogin = trpc.access.loginWithPassword.useMutation({
-    onSuccess: result => {
-      refetch();
+    onSuccess: async result => {
+      await refetch();
       toast.success(`Bem-vindo, ${result.displayName}.`);
-      navigate(result.mustChangePassword ? "/trocar-senha" : "/painel");
+      navigate(
+        result.mustChangePassword
+          ? "/trocar-senha"
+          : result.role === "SUPER_ADMIN"
+            ? "/admin"
+            : "/painel"
+      );
     },
-    onError: error => toast.error(errorMessage(error, "Não foi possível entrar.")),
+    onError: error =>
+      toast.error(errorMessage(error, "Não foi possível entrar.")),
   });
 
   const accessLogin = trpc.access.loginWithAccessId.useMutation({
-    onSuccess: result => {
-      refetch();
+    onSuccess: async result => {
+      await refetch();
       toast.success(`Olá, ${result.displayName}!`);
       navigate(result.pinResetRequested ? "/trocar-pin" : "/minha-escala");
     },
-    onError: error => toast.error(errorMessage(error, "Não foi possível entrar.")),
+    onError: error =>
+      toast.error(errorMessage(error, "Não foi possível entrar.")),
   });
 
   const requestReset = trpc.access.requestPasswordReset.useMutation({
@@ -62,7 +76,9 @@ export default function Login() {
       setResetEmail("");
       // Mensagem deliberadamente neutra: confirmar que o e-mail existe
       // permitiria descobrir quem tem conta no sistema.
-      toast.success("Se este e-mail estiver cadastrado, as instruções foram enviadas.");
+      toast.success(
+        "Se este e-mail estiver cadastrado, as instruções foram enviadas."
+      );
     },
     onError: error => toast.error(errorMessage(error)),
   });
@@ -86,7 +102,9 @@ export default function Login() {
                 <Church className="h-6 w-6" />
               </span>
               <div>
-                <p className="text-sm uppercase tracking-widest opacity-80">Pastoral Litúrgica</p>
+                <p className="text-sm uppercase tracking-widest opacity-80">
+                  Servidores do Altar
+                </p>
                 <h1 className="text-xl font-semibold">Escala Servidores</h1>
               </div>
             </div>
@@ -97,9 +115,9 @@ export default function Login() {
               Organize a escala do altar sem perder ninguém de vista.
             </h2>
             <p className="text-primary-foreground/80">
-              Disponibilidade, confirmações, substituições e formação dos servidores
-              em um só lugar — com respeito à privacidade das crianças e ao trabalho
-              de quem coordena.
+              Disponibilidade, confirmações, substituições e formação dos
+              servidores em um só lugar — com respeito à privacidade das
+              crianças e ao trabalho de quem coordena.
             </p>
             <ul className="space-y-3 text-sm text-primary-foreground/90">
               <li className="flex items-start gap-2">
@@ -131,7 +149,7 @@ export default function Login() {
                 </span>
                 <div>
                   <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                    Pastoral Litúrgica
+                    Servidores do Altar
                   </p>
                   <h1 className="text-lg font-semibold">Escala Servidores</h1>
                 </div>
@@ -141,7 +159,9 @@ export default function Login() {
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="space-y-1">
                 <CardTitle className="text-xl">Entrar</CardTitle>
-                <CardDescription>Escolha como você acessa o sistema.</CardDescription>
+                <CardDescription>
+                  Escolha como você acessa o sistema.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="password">
@@ -170,7 +190,7 @@ export default function Login() {
                           id="email"
                           type="email"
                           autoComplete="email"
-                          placeholder="coordenacao@paroquia.org"
+                          placeholder="seu@email.com"
                           value={email}
                           onChange={event => setEmail(event.target.value)}
                           required
@@ -187,8 +207,14 @@ export default function Login() {
                           required
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={passwordLogin.isPending}>
-                        {passwordLogin.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={passwordLogin.isPending}
+                      >
+                        {passwordLogin.isPending && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
                         Entrar
                       </Button>
                       <button
@@ -223,7 +249,9 @@ export default function Login() {
                           autoComplete="off"
                           autoCapitalize="characters"
                           value={accessId}
-                          onChange={event => setAccessId(event.target.value.toUpperCase())}
+                          onChange={event =>
+                            setAccessId(event.target.value.toUpperCase())
+                          }
                           required
                         />
                       </div>
@@ -241,13 +269,20 @@ export default function Login() {
                           required
                         />
                       </div>
-                      <Button type="submit" className="h-12 w-full text-base" disabled={accessLogin.isPending}>
-                        {accessLogin.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      <Button
+                        type="submit"
+                        className="h-12 w-full text-base"
+                        disabled={accessLogin.isPending}
+                      >
+                        {accessLogin.isPending && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
                         Entrar
                       </Button>
                       <p className="text-xs text-muted-foreground">
-                        Não sabe seu ID ou esqueceu o PIN? Fale com a coordenação ou
-                        com seu responsável — eles geram um código novo para você.
+                        Não sabe seu ID ou esqueceu o PIN? Fale com a
+                        coordenação ou com seu responsável — eles geram um
+                        código novo para você.
                       </p>
                     </form>
                   </TabsContent>
@@ -257,7 +292,10 @@ export default function Login() {
 
             <p className="text-center text-xs text-muted-foreground">
               Primeiro acesso de servidor?{" "}
-              <a href="/ativar" className="underline underline-offset-4 hover:text-foreground">
+              <a
+                href="/ativar"
+                className="underline underline-offset-4 hover:text-foreground"
+              >
                 Ativar meu acesso
               </a>
             </p>
@@ -270,7 +308,8 @@ export default function Login() {
           <DialogHeader>
             <DialogTitle>Recuperar senha</DialogTitle>
             <DialogDescription>
-              Informe o e-mail cadastrado. Enviaremos as instruções de redefinição.
+              Informe o e-mail cadastrado. Enviaremos as instruções de
+              redefinição.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -290,7 +329,9 @@ export default function Login() {
               onClick={() => requestReset.mutate({ email: resetEmail })}
               disabled={requestReset.isPending || resetEmail.length === 0}
             >
-              {requestReset.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {requestReset.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Enviar instruções
             </Button>
           </DialogFooter>

@@ -7,8 +7,10 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { SessionProvider, useSession } from "./contexts/SessionContext";
 import AppLayout from "./components/AppLayout";
 import Login from "./pages/Login";
+import ChangeCredentials from "./pages/ChangeCredentials";
 import ActivateAccess from "./pages/ActivateAccess";
 import Dashboard from "./pages/Dashboard";
+import PlatformAdmin from "./pages/PlatformAdmin";
 import MySchedule from "./pages/MySchedule";
 import Celebrations from "./pages/Celebrations";
 import CelebrationDetail from "./pages/CelebrationDetail";
@@ -60,6 +62,7 @@ function HomeRedirect() {
   }
 
   if (!isAuthenticated) return <Redirect to="/acesso" />;
+  if (session?.role === "SUPER_ADMIN") return <Redirect to="/admin" />;
   if (session?.role === "SERVER") return <Redirect to="/minha-escala" />;
   return <Redirect to="/painel" />;
 }
@@ -70,6 +73,22 @@ function Router() {
       <Route path="/" component={HomeRedirect} />
       <Route path="/acesso" component={Login} />
       <Route path="/ativar" component={ActivateAccess} />
+      <Route path="/trocar-senha">
+        <Protected>
+          <ChangeCredentials />
+        </Protected>
+      </Route>
+      <Route path="/trocar-pin">
+        <Protected>
+          <ChangeCredentials />
+        </Protected>
+      </Route>
+
+      <Route path="/admin">
+        <Protected>
+          <PlatformAdmin />
+        </Protected>
+      </Route>
 
       <Route path="/painel">
         <Protected>

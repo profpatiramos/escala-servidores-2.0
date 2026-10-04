@@ -63,8 +63,11 @@ const parishInput = z.object({
  * Provisiona os dados padrão de uma paróquia recém-criada.
  * Executado apenas na criação, de forma idempotente por paróquia.
  */
-export async function provisionParishDefaults(parishId: number): Promise<void> {
-  const db = await getDbOrThrow();
+export async function provisionParishDefaults(
+  parishId: number,
+  connection?: Pick<Awaited<ReturnType<typeof getDbOrThrow>>, "insert">
+): Promise<void> {
+  const db = connection ?? (await getDbOrThrow());
 
   await db.insert(parishRoles).values(
     DEFAULT_LITURGICAL_ROLES.map((role, index) => ({
@@ -74,7 +77,7 @@ export async function provisionParishDefaults(parishId: number): Promise<void> {
       minAge: role.minAge,
       requiresQualification: true,
       sortOrder: index,
-    })),
+    }))
   );
 
   await db.insert(pointRules).values(
@@ -84,7 +87,7 @@ export async function provisionParishDefaults(parishId: number): Promise<void> {
       points: rule.points,
       enabled: rule.enabled,
       description: rule.description,
-    })),
+    }))
   );
 
   await db.insert(achievements).values(
@@ -94,7 +97,7 @@ export async function provisionParishDefaults(parishId: number): Promise<void> {
       description: achievement.description,
       criteriaKind: achievement.criteriaKind,
       threshold: achievement.threshold,
-    })),
+    }))
   );
 
   // Penalização e ranking de menores permanecem desabilitados por padrão.
@@ -128,7 +131,7 @@ export const parishesRouter = router({
     }));
   }),
 
-  /** Cria uma paróquia e provisiona seus dados padrão. */
+  /** Cria uma paróquia em estado de aguardando liberação. A plataforma libera depois. */
   create: platformAdminProcedure
     .input(
       parishInput.extend({
@@ -136,77 +139,102 @@ export const parishesRouter = router({
         adminName: z.string().trim().min(3, "Informe o nome do administrador."),
         adminEmail: z.string().trim().email("Informe um e-mail válido."),
         adminPassword: z.string().min(SECURITY.minPasswordLength),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
-      const strength = validatePasswordStrength(input.adminPassword, SECURITY.minPasswordLength);
+      const strength = validatePasswordStrength(
+        input.adminPassword,
+        SECURITY.minPasswordLength
+      );
       if (!strength.valid) throw badRequest(strength.message!);
 
       const db = await getDbOrThrow();
-      const email = input.adminEmail.toLowerCase();
+      const passwordHash = await hashSecret(input.adminPassword);
+      const created = await db.transaction(async tx => {
+        const email = input.adminEmail.toLowerCase();
 
-      const [existingUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-      if (existingUser) {
-        throw badRequest("Já existe uma conta com este e-mail. Vincule-a à paróquia após criá-la.");
-      }
+        const [existingUser] = await tx
+          .select()
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
+        if (existingUser) {
+          throw badRequest(
+            "Já existe uma conta com este e-mail. Vincule-a à paróquia após criá-la."
+          );
+        }
 
-      let slug = toSlug(input.name);
-      const [slugTaken] = await db
-        .select({ id: parishes.id })
-        .from(parishes)
-        .where(eq(parishes.slug, slug))
-        .limit(1);
-      if (slugTaken) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+        let slug = toSlug(input.name);
+        if (!slug) throw badRequest("Nome de paróquia inválido.");
+        const [slugTaken] = await tx
+          .select({ id: parishes.id })
+          .from(parishes)
+          .where(eq(parishes.slug, slug))
+          .limit(1);
+        if (slugTaken) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
 
-      await db.insert(parishes).values({
-        name: input.name,
-        legalName: input.legalName ?? null,
-        slug,
-        city: input.city ?? null,
-        state: input.state ?? null,
-        address: input.address ?? null,
-        phone: input.phone ?? null,
-        email: input.email ?? null,
-        timezone: input.timezone,
-        status: "ACTIVE",
-        settings: { requireMinPreferences: true },
-      });
-
-      const [created] = await db
-        .select()
-        .from(parishes)
-        .where(eq(parishes.slug, slug))
-        .limit(1);
-      if (!created) throw badRequest("Não foi possível criar a paróquia.");
-
-      await provisionParishDefaults(created.id);
-
-      await db.insert(users).values({
-        name: input.adminName,
-        email,
-        passwordHash: await hashSecret(input.adminPassword),
-        loginMethod: "password",
-        status: "ACTIVE",
-        // O administrador define a própria senha no primeiro acesso.
-        mustChangePassword: true,
-      });
-
-      const [adminUser] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-      if (adminUser) {
-        await db.insert(parishMembers).values({
-          parishId: created.id,
-          userId: adminUser.id,
-          role: "PARISH_ADMIN",
-          status: "ACTIVE",
+        await tx.insert(parishes).values({
+          name: input.name,
+          legalName: input.legalName ?? null,
+          slug,
+          city: input.city ?? null,
+          state: input.state ?? null,
+          address: input.address ?? null,
+          phone: input.phone ?? null,
+          email: input.email ?? null,
+          timezone: input.timezone,
+          status: "INACTIVE",
+          settings: { requireMinPreferences: true },
         });
-      }
+
+        const [created] = await tx
+          .select()
+          .from(parishes)
+          .where(eq(parishes.slug, slug))
+          .limit(1);
+        if (!created) throw badRequest("Não foi possível criar a paróquia.");
+
+        await provisionParishDefaults(created.id, tx);
+
+        await tx.insert(users).values({
+          name: input.adminName,
+          email,
+          passwordHash,
+          loginMethod: "password",
+          status: "ACTIVE",
+          // O administrador define a própria senha no primeiro acesso.
+          mustChangePassword: true,
+        });
+
+        const [adminUser] = await tx
+          .select()
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
+        if (!adminUser)
+          throw badRequest("Não foi possível criar o administrador.");
+        {
+          await tx.insert(parishMembers).values({
+            parishId: created.id,
+            userId: adminUser.id,
+            role: "PARISH_ADMIN",
+            status: "ACTIVE",
+          });
+        }
+
+        return created;
+      });
 
       await recordAudit(ctx.actor, {
         action: "PARISH_CREATED",
         entityType: "parish",
         entityId: created.id,
         parishId: created.id,
-        metadata: { name: created.name, slug, adminEmail: email },
+        metadata: {
+          name: created.name,
+          slug: created.slug,
+          adminEmail: input.adminEmail.toLowerCase(),
+        },
         ...requestMeta(ctx),
       });
 
@@ -215,7 +243,12 @@ export const parishesRouter = router({
 
   /** Altera o status da paróquia. Suspender impede o acesso de todos os atores. */
   setStatus: platformAdminProcedure
-    .input(z.object({ parishId: z.number().int().positive(), status: z.enum(PARISH_STATUS) }))
+    .input(
+      z.object({
+        parishId: z.number().int().positive(),
+        status: z.enum(PARISH_STATUS),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const db = await getDbOrThrow();
       const [parish] = await db
@@ -255,33 +288,37 @@ export const parishesRouter = router({
   }),
 
   /** Atualiza os dados cadastrais da própria paróquia. */
-  update: parishAdminProcedure.input(parishInput.partial()).mutation(async ({ ctx, input }) => {
-    const db = await getDbOrThrow();
+  update: parishAdminProcedure
+    .input(parishInput.partial())
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDbOrThrow();
 
-    await db
-      .update(parishes)
-      .set({
-        ...(input.name !== undefined ? { name: input.name } : {}),
-        ...(input.legalName !== undefined ? { legalName: input.legalName } : {}),
-        ...(input.city !== undefined ? { city: input.city } : {}),
-        ...(input.state !== undefined ? { state: input.state } : {}),
-        ...(input.address !== undefined ? { address: input.address } : {}),
-        ...(input.phone !== undefined ? { phone: input.phone } : {}),
-        ...(input.email !== undefined ? { email: input.email } : {}),
-        ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
-      })
-      .where(eq(parishes.id, ctx.parishId));
+      await db
+        .update(parishes)
+        .set({
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.legalName !== undefined
+            ? { legalName: input.legalName }
+            : {}),
+          ...(input.city !== undefined ? { city: input.city } : {}),
+          ...(input.state !== undefined ? { state: input.state } : {}),
+          ...(input.address !== undefined ? { address: input.address } : {}),
+          ...(input.phone !== undefined ? { phone: input.phone } : {}),
+          ...(input.email !== undefined ? { email: input.email } : {}),
+          ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
+        })
+        .where(eq(parishes.id, ctx.parishId));
 
-    await recordAudit(ctx.actor, {
-      action: "PARISH_UPDATED",
-      entityType: "parish",
-      entityId: ctx.parishId,
-      metadata: { fields: Object.keys(input) },
-      ...requestMeta(ctx),
-    });
+      await recordAudit(ctx.actor, {
+        action: "PARISH_UPDATED",
+        entityType: "parish",
+        entityId: ctx.parishId,
+        metadata: { fields: Object.keys(input) },
+        ...requestMeta(ctx),
+      });
 
-    return { success: true } as const;
-  }),
+      return { success: true } as const;
+    }),
 
   /** Atualiza as configurações operacionais da paróquia. */
   updateSettings: parishAdminProcedure
@@ -290,7 +327,7 @@ export const parishesRouter = router({
         requireMinPreferences: z.boolean().optional(),
         confirmationDeadlineHours: z.number().int().min(0).max(336).optional(),
         earlyConfirmationHours: z.number().int().min(0).max(336).optional(),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDbOrThrow();
@@ -300,7 +337,8 @@ export const parishesRouter = router({
         .where(eq(parishes.id, ctx.parishId))
         .limit(1);
 
-      const current = (parish?.settings as Record<string, unknown> | null) ?? {};
+      const current =
+        (parish?.settings as Record<string, unknown> | null) ?? {};
       const merged = { ...current, ...input };
 
       await db
@@ -347,18 +385,25 @@ export const parishesRouter = router({
         name: z.string().trim().min(3, "Informe o nome."),
         email: z.string().trim().email("Informe um e-mail válido."),
         phone: z.string().trim().max(32).optional().nullable(),
-        role: z.enum(["PARISH_ADMIN", "COORDINATOR", "RESPONSIBLE"]),
+        role: z.enum(["PARISH_ADMIN", "COORDINATOR", "PRIEST", "RESPONSIBLE"]),
         temporaryPassword: z.string().min(SECURITY.minPasswordLength),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
-      const strength = validatePasswordStrength(input.temporaryPassword, SECURITY.minPasswordLength);
+      const strength = validatePasswordStrength(
+        input.temporaryPassword,
+        SECURITY.minPasswordLength
+      );
       if (!strength.valid) throw badRequest(strength.message!);
 
       const db = await getDbOrThrow();
       const email = input.email.toLowerCase();
 
-      let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      let [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
 
       if (!user) {
         await db.insert(users).values({
@@ -370,7 +415,11 @@ export const parishesRouter = router({
           status: "ACTIVE",
           mustChangePassword: true,
         });
-        [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        [user] = await db
+          .select()
+          .from(users)
+          .where(eq(users.email, email))
+          .limit(1);
       }
 
       if (!user) throw badRequest("Não foi possível criar o membro.");
@@ -382,8 +431,8 @@ export const parishesRouter = router({
           and(
             eq(parishMembers.parishId, ctx.parishId),
             eq(parishMembers.userId, user.id),
-            eq(parishMembers.role, input.role),
-          ),
+            eq(parishMembers.role, input.role)
+          )
         )
         .limit(1);
 
@@ -425,7 +474,10 @@ export const parishesRouter = router({
         .select()
         .from(parishMembers)
         .where(
-          and(eq(parishMembers.id, input.membershipId), eq(parishMembers.parishId, ctx.parishId)),
+          and(
+            eq(parishMembers.id, input.membershipId),
+            eq(parishMembers.parishId, ctx.parishId)
+          )
         )
         .limit(1);
 
@@ -440,11 +492,13 @@ export const parishesRouter = router({
             and(
               eq(parishMembers.parishId, ctx.parishId),
               eq(parishMembers.role, "PARISH_ADMIN"),
-              eq(parishMembers.status, "ACTIVE"),
-            ),
+              eq(parishMembers.status, "ACTIVE")
+            )
           );
         if (Number(total) <= 1) {
-          throw badRequest("A paróquia precisa manter pelo menos um administrador ativo.");
+          throw badRequest(
+            "A paróquia precisa manter pelo menos um administrador ativo."
+          );
         }
       }
 

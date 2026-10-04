@@ -1,0 +1,11 @@
+{
+  "framework": "express",
+  "buildCommand": "pnpm build:vercel",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "rewrites": [
+    {
+      "source": "/((?!api/|healthz|assets/|.*\\.).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

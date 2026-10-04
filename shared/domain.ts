@@ -6,13 +6,14 @@
 // ---------------------------------------------------------------------------
 // Papéis e atores
 // ---------------------------------------------------------------------------
-export const PARISH_ROLES = ["PARISH_ADMIN", "COORDINATOR", "RESPONSIBLE"] as const;
+export const PARISH_ROLES = ["PARISH_ADMIN", "COORDINATOR", "PRIEST", "RESPONSIBLE"] as const;
 export type ParishRoleName = (typeof PARISH_ROLES)[number];
 
 export const ALL_ROLES = [
   "SUPER_ADMIN",
   "PARISH_ADMIN",
   "COORDINATOR",
+  "PRIEST",
   "RESPONSIBLE",
   "SERVER",
 ] as const;
@@ -22,6 +23,7 @@ export const ROLE_LABELS: Record<RoleName, string> = {
   SUPER_ADMIN: "Administrador da plataforma",
   PARISH_ADMIN: "Administrador da paróquia",
   COORDINATOR: "Coordenador",
+  PRIEST: "Padre",
   RESPONSIBLE: "Responsável",
   SERVER: "Servidor",
 };
@@ -695,10 +697,14 @@ export const SECURITY = {
 
 /** Calcula a idade em anos a partir da data de nascimento. Nunca persistir o resultado. */
 export function calculateAge(birthDate: Date | string, reference: Date = new Date()): number {
-  const birth = typeof birthDate === "string" ? new Date(birthDate) : birthDate;
-  let age = reference.getFullYear() - birth.getFullYear();
-  const monthDiff = reference.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && reference.getDate() < birth.getDate())) {
+  // PostgreSQL date is a calendar date; parsing YYYY-MM-DD as UTC shifts it
+  // to the previous day in Brazil. Keep the supplied calendar components.
+  const [year, month, day] = typeof birthDate === "string"
+    ? birthDate.slice(0, 10).split("-").map(Number)
+    : [birthDate.getFullYear(), birthDate.getMonth() + 1, birthDate.getDate()];
+  let age = reference.getFullYear() - year;
+  const monthDiff = reference.getMonth() + 1 - month;
+  if (monthDiff < 0 || (monthDiff === 0 && reference.getDate() < day)) {
     age -= 1;
   }
   return age;

@@ -1,7 +1,7 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
-import { SESSION_COOKIE } from "@shared/const";
+import { SESSION_COOKIE, COOKIE_NAME } from "@shared/const";
 import { resolveActorFromToken } from "../auth/service";
 import type { Actor } from "../auth/types";
 
@@ -24,7 +24,9 @@ export async function createContext(
   let actor: Actor | null = null;
 
   try {
-    user = await sdk.authenticateRequest(opts.req);
+    if ((opts.req.headers.cookie ?? "").split(";").some(part => part.trim().startsWith(`${COOKIE_NAME}=`))) {
+      user = await sdk.authenticateRequest(opts.req);
+    }
   } catch (error) {
     // Authentication is optional for public procedures.
     user = null;

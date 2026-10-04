@@ -13,6 +13,7 @@ export type RoleName =
   | "SUPER_ADMIN"
   | "PARISH_ADMIN"
   | "COORDINATOR"
+  | "PRIEST"
   | "RESPONSIBLE"
   | "SERVER";
 
@@ -36,7 +37,7 @@ type SessionContextValue = {
   isAuthenticated: boolean;
   /** Papéis com poder de gestão operacional. */
   isManager: boolean;
-  refetch: () => void;
+  refetch: () => Promise<void>;
 };
 
 const SessionContext = createContext<SessionContextValue>({
@@ -44,18 +45,26 @@ const SessionContext = createContext<SessionContextValue>({
   isLoading: true,
   isAuthenticated: false,
   isManager: false,
-  refetch: () => {},
+  refetch: async () => {},
 });
 
-const MANAGEMENT_ROLES: RoleName[] = ["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR"];
+const MANAGEMENT_ROLES: RoleName[] = [
+  "SUPER_ADMIN",
+  "PARISH_ADMIN",
+  "COORDINATOR",
+];
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const { data, isLoading, refetch } = trpc.access.session.useQuery(undefined, {
-    retry: false,
-    // A sessão é a base de toda navegação: revalidar ao voltar para a aba evita
-    // que o usuário continue vendo telas de um papel que já expirou.
-    refetchOnWindowFocus: true,
-  });
+  const utils = trpc.useUtils();
+  const { data, isLoading, isFetching } = trpc.access.session.useQuery(
+    undefined,
+    {
+      retry: false,
+      // A sessão é a base de toda navegação: revalidar ao voltar para a aba evita
+      // que o usuário continue vendo telas de um papel que já expirou.
+      refetchOnWindowFocus: true,
+    }
+  );
 
   const session = (data ?? null) as SessionData | null;
 
@@ -63,10 +72,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     <SessionContext.Provider
       value={{
         session,
-        isLoading,
+        isLoading: isLoading || (isFetching && !session),
         isAuthenticated: session !== null,
         isManager: session !== null && MANAGEMENT_ROLES.includes(session.role),
-        refetch: () => void refetch(),
+        refetch: async () => {
+          // A request started before login may still be returning null. Cancel it
+          // before fetching the session created by the new cookie.
+          await utils.access.session.cancel();
+          const fresh = await utils.access.session.fetch(undefined, {
+            staleTime: 0,
+          });
+          utils.access.session.setData(undefined, fresh);
+        },
       }}
     >
       {children}

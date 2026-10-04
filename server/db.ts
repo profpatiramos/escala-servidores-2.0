@@ -7,6 +7,8 @@
  */
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { normalizeDatabaseUrl } from "./database-config";
 
 import { InsertUser, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -14,14 +16,25 @@ import { ENV } from "./_core/env";
 type Database = ReturnType<typeof drizzle>;
 
 let _db: Database | null = null;
+let _pool: Pool | null = null;
+
+export async function closeDb(): Promise<void> {
+  await _pool?.end();
+  _pool = null;
+  _db = null;
+}
 
 /** Instancia o Drizzle de forma lazy para permitir tooling sem banco. */
 export async function getDb(): Promise<Database | null> {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _pool = new Pool({
+        connectionString: normalizeDatabaseUrl(process.env.DATABASE_URL),
+        connectionTimeoutMillis: 15000,
+      });
+      _db = drizzle(_pool);
     } catch (error) {
-      console.warn("[Database] Falha ao conectar:", error);
+      console.warn("[Database] Configuração ou conexão indisponível.");
       _db = null;
     }
   }
@@ -91,13 +104,20 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     updateSet.lastSignedIn = new Date();
   }
 
-  await db.insert(users).values(values).onConflictDoUpdate({ target: users.openId, set: updateSet });
+  await db
+    .insert(users)
+    .values(values)
+    .onConflictDoUpdate({ target: users.openId, set: updateSet });
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 

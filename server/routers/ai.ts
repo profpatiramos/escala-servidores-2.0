@@ -247,9 +247,11 @@ export const aiRouter = router({
           parishId: ctx.parishId,
           celebrationId,
           assignments: group
-            .filter(p => p.serverId !== null)
-            .map(p => ({ serverId: p.serverId as number, parishRoleId: p.parishRoleId })),
-          checkStaffing: false,
+            .filter((p: (typeof accepted)[number]) => p.serverId !== null)
+.map((p: (typeof accepted)[number]) => ({
+  serverId: p.serverId as number,
+  parishRoleId: p.parishRoleId,
+})),          checkStaffing: false,
         });
 
         if (!validation.valid) {

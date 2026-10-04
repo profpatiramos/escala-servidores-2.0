@@ -10,6 +10,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Bell,
+  Building2,
   CalendarCheck,
   CalendarDays,
   Church,
@@ -46,12 +47,29 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   {
+    label: "Paróquias",
+    href: "/admin",
+    icon: Building2,
+    roles: ["SUPER_ADMIN"],
+  },
+  {
     label: "Painel",
     href: "/painel",
     icon: Gauge,
-    roles: ["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR", "RESPONSIBLE"],
+    roles: [
+      "SUPER_ADMIN",
+      "PARISH_ADMIN",
+      "COORDINATOR",
+      "PRIEST",
+      "RESPONSIBLE",
+    ],
   },
-  { label: "Minha escala", href: "/minha-escala", icon: CalendarCheck, roles: ["SERVER"] },
+  {
+    label: "Minha escala",
+    href: "/minha-escala",
+    icon: CalendarCheck,
+    roles: ["SERVER"],
+  },
   {
     label: "Celebrações",
     href: "/celebracoes",
@@ -80,7 +98,13 @@ const NAV_ITEMS: NavItem[] = [
     label: "Disponibilidade",
     href: "/disponibilidade",
     icon: ClipboardList,
-    roles: ["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR", "RESPONSIBLE", "SERVER"],
+    roles: [
+      "SUPER_ADMIN",
+      "PARISH_ADMIN",
+      "COORDINATOR",
+      "RESPONSIBLE",
+      "SERVER",
+    ],
   },
   {
     label: "Assistente de IA",
@@ -92,13 +116,25 @@ const NAV_ITEMS: NavItem[] = [
     label: "Eventos",
     href: "/eventos",
     icon: PartyPopper,
-    roles: ["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR", "RESPONSIBLE", "SERVER"],
+    roles: [
+      "SUPER_ADMIN",
+      "PARISH_ADMIN",
+      "COORDINATOR",
+      "RESPONSIBLE",
+      "SERVER",
+    ],
   },
   {
     label: "Reconhecimento",
     href: "/reconhecimento",
     icon: Trophy,
-    roles: ["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR", "RESPONSIBLE", "SERVER"],
+    roles: [
+      "SUPER_ADMIN",
+      "PARISH_ADMIN",
+      "COORDINATOR",
+      "RESPONSIBLE",
+      "SERVER",
+    ],
   },
   {
     label: "Relatórios",
@@ -118,6 +154,7 @@ const ROLE_LABELS: Record<RoleName, string> = {
   SUPER_ADMIN: "Administrador da plataforma",
   PARISH_ADMIN: "Administrador da paróquia",
   COORDINATOR: "Coordenador",
+  PRIEST: "Padre",
   RESPONSIBLE: "Responsável",
   SERVER: "Servidor",
 };
@@ -170,7 +207,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="space-y-1">
           {items.map(item => {
-            const active = location === item.href || location.startsWith(`${item.href}/`);
+            const active =
+              location === item.href || location.startsWith(`${item.href}/`);
             const Icon = item.icon;
             return (
               <Link
@@ -181,7 +219,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
                   active
                     ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
@@ -200,10 +238,24 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             {initials || "?"}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{session.displayName}</p>
-            <p className="truncate text-xs text-muted-foreground">{ROLE_LABELS[session.role]}</p>
+            <p className="truncate text-sm font-medium">
+              {session.displayName}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {ROLE_LABELS[session.role]}
+            </p>
           </div>
         </div>
+        <Link
+          className="block text-sm text-muted-foreground hover:underline"
+          href={
+            session.actorType === "SERVER" ? "/trocar-pin" : "/trocar-senha"
+          }
+        >
+          {session.actorType === "SERVER"
+            ? "Trocar meu PIN"
+            : "Trocar minha senha"}
+        </Link>
         <Button
           variant="outline"
           size="sm"
@@ -263,7 +315,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <p className="truncate text-sm font-medium">
               {session.parishName ?? "Administração da plataforma"}
             </p>
-            <p className="truncate text-xs text-muted-foreground">{ROLE_LABELS[session.role]}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {ROLE_LABELS[session.role]}
+            </p>
           </div>
 
           <Link

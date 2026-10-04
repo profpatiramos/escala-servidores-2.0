@@ -4,15 +4,22 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
+    "dev": "node scripts/run.mjs development",
     "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node dist/index.js",
+    "start": "node scripts/run.mjs production",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit push",
+    "db:push": "node scripts/no-push.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "admin:create": "tsx scripts/create-platform-admin.ts",
+    "db:audit": "tsx scripts/database.ts audit",
+    "db:backup": "tsx scripts/database.ts backup",
+    "db:repair": "tsx scripts/database.ts repair",
+    "admin:email": "tsx scripts/change-platform-admin-email.ts",
+    "verify:local": "tsx scripts/verify-local.ts",
+    "build:vercel": "pnpm build && node scripts/build-vercel.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
@@ -106,5 +113,8 @@
     "vitest": "^2.1.4",
     "@types/pg": "^8.15.5"
   },
-  "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af"
+  "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
+  "engines": {
+    "node": "22.x"
+  }
 }

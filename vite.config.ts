@@ -150,7 +150,7 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins = [react(), tailwindcss(), ...(process.env.NODE_ENV === "production" ? [] : [jsxLocPlugin(), vitePluginManusDebugCollector()]), ...(process.env.ENABLE_MANUS_RUNTIME === "true" ? [vitePluginManusRuntime()] : [])];
 
 export default defineConfig({
   plugins,
