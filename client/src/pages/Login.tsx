@@ -43,6 +43,11 @@ export default function Login() {
   const [pin, setPin] = useState("");
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetToken, setResetToken] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetPasswordConfirmation, setResetPasswordConfirmation] =
+    useState("");
 
   const passwordLogin = trpc.access.loginWithPassword.useMutation({
     onSuccess: async result => {
@@ -72,13 +77,25 @@ export default function Login() {
 
   const requestReset = trpc.access.requestPasswordReset.useMutation({
     onSuccess: () => {
-      setResetOpen(false);
-      setResetEmail("");
+      setResetConfirm(true);
       // Mensagem deliberadamente neutra: confirmar que o e-mail existe
       // permitiria descobrir quem tem conta no sistema.
       toast.success(
         "Se este e-mail estiver cadastrado, as instruções foram enviadas."
       );
+    },
+    onError: error => toast.error(errorMessage(error)),
+  });
+
+  const confirmReset = trpc.access.confirmPasswordReset.useMutation({
+    onSuccess: () => {
+      setResetOpen(false);
+      setResetConfirm(false);
+      setResetToken("");
+      setResetPassword("");
+      setResetPasswordConfirmation("");
+      setResetEmail("");
+      toast.success("Senha redefinida. Entre com sua nova senha.");
     },
     onError: error => toast.error(errorMessage(error)),
   });
@@ -308,31 +325,96 @@ export default function Login() {
           <DialogHeader>
             <DialogTitle>Recuperar senha</DialogTitle>
             <DialogDescription>
-              Informe o e-mail cadastrado. Enviaremos as instruções de
-              redefinição.
+              {resetConfirm
+                ? "Copie o código recebido por e-mail e escolha sua nova senha. O código vale por 1 hora."
+                : "Informe o e-mail cadastrado. Enviaremos as instruções de redefinição."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="resetEmail">E-mail</Label>
-            <Input
-              id="resetEmail"
-              type="email"
-              value={resetEmail}
-              onChange={event => setResetEmail(event.target.value)}
-            />
-          </div>
+          {!resetConfirm ? (
+            <div className="space-y-2">
+              <Label htmlFor="resetEmail">E-mail</Label>
+              <Input
+                id="resetEmail"
+                type="email"
+                value={resetEmail}
+                onChange={event => setResetEmail(event.target.value)}
+              />
+              <Button variant="link" onClick={() => setResetConfirm(true)}>
+                Já tenho um código
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="resetToken">Código recebido por e-mail</Label>
+                <Input
+                  id="resetToken"
+                  autoComplete="off"
+                  value={resetToken}
+                  onChange={event => setResetToken(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="resetPassword">Nova senha</Label>
+                <Input
+                  id="resetPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  value={resetPassword}
+                  onChange={event => setResetPassword(event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use pelo menos 8 caracteres, com letras e números.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="resetPasswordConfirmation">
+                  Confirmar nova senha
+                </Label>
+                <Input
+                  id="resetPasswordConfirmation"
+                  type="password"
+                  autoComplete="new-password"
+                  value={resetPasswordConfirmation}
+                  onChange={event =>
+                    setResetPasswordConfirmation(event.target.value)
+                  }
+                />
+              </div>
+              <Button variant="link" onClick={() => setResetConfirm(false)}>
+                Solicitar outro código
+              </Button>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetOpen(false)}>
               Cancelar
             </Button>
             <Button
-              onClick={() => requestReset.mutate({ email: resetEmail })}
-              disabled={requestReset.isPending || resetEmail.length === 0}
+              onClick={() => {
+                if (!resetConfirm)
+                  return requestReset.mutate({ email: resetEmail });
+                if (resetPassword !== resetPasswordConfirmation)
+                  return toast.error("As senhas precisam ser iguais.");
+                confirmReset.mutate({
+                  token: resetToken.trim(),
+                  newPassword: resetPassword,
+                });
+              }}
+              disabled={
+                requestReset.isPending ||
+                confirmReset.isPending ||
+                (resetConfirm
+                  ? resetToken.trim().length < 10 ||
+                    resetPassword.length < 8 ||
+                    resetPasswordConfirmation.length === 0
+                  : resetEmail.length === 0)
+              }
             >
-              {requestReset.isPending && (
+              {(requestReset.isPending || confirmReset.isPending) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Enviar instruções
+              {resetConfirm ? "Redefinir senha" : "Enviar instruções"}
             </Button>
           </DialogFooter>
         </DialogContent>

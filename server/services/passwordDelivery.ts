@@ -25,7 +25,7 @@ export async function deliverPasswordResetToken(params: {
     // administração pode reemitir a solicitação após configurar o canal.
     console.warn(
       "[Recuperação de senha] Canal de e-mail não configurado. Código gerado sem envio automático para",
-      maskEmail(params.email),
+      maskEmail(params.email)
     );
     return { channel: "SELF_SERVICE", delivered: false };
   }
@@ -38,7 +38,8 @@ export async function deliverPasswordResetToken(params: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL ?? "nao-responda@escalaservidores.app",
+        from:
+          process.env.RESEND_FROM_EMAIL ?? "nao-responda@escalaservidores.app",
         to: params.email,
         subject: "Redefinição de senha — Escala Servidores",
         text: buildMessage(params.name, params.token),
@@ -65,6 +66,7 @@ function buildMessage(name: string | null, token: string): string {
     "Recebemos uma solicitação para redefinir a senha do seu acesso ao Escala Servidores.",
     "",
     `Código de redefinição: ${token}`,
+    "Abra a página de acesso do Escala Servidores, clique em Esqueci minha senha e depois em Já tenho um código. Cole o código e escolha sua nova senha.",
     "",
     "O código é válido por 1 hora e pode ser usado uma única vez.",
     "Se você não solicitou a redefinição, ignore esta mensagem: sua senha atual continua válida.",
