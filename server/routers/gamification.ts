@@ -179,7 +179,7 @@ export const gamificationRouter = router({
         effective:
           !!settings?.enabled &&
           rule.enabled &&
-          (rule.points >= 0 || !!settings?.penaltiesEnabled),
+          (!["JUSTIFIED_ABSENCE", "UNJUSTIFIED_ABSENCE"].includes(rule.eventType) || !!settings?.penaltiesEnabled),
       }));
     }),
     list: coordinatorProcedure.query(async ({ ctx }) => {
