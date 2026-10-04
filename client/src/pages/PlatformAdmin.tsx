@@ -1,8 +1,22 @@
 import { useState, type FormEvent } from "react";
-import { Building2, CheckCircle2, Clock3, Loader2, PauseCircle, Plus, ShieldCheck } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  PauseCircle,
+  Plus,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +40,10 @@ export default function PlatformAdmin() {
       void utils.parishes.list.invalidate();
       setForm(initialForm);
     },
-    onError: error => toast.error(errorMessage(error, "Não foi possível cadastrar a paróquia.")),
+    onError: error =>
+      toast.error(
+        errorMessage(error, "Não foi possível cadastrar a paróquia.")
+      ),
   });
 
   const setStatus = trpc.parishes.setStatus.useMutation({
@@ -34,7 +51,8 @@ export default function PlatformAdmin() {
       toast.success("Status da paróquia atualizado.");
       void utils.parishes.list.invalidate();
     },
-    onError: error => toast.error(errorMessage(error, "Não foi possível alterar o status.")),
+    onError: error =>
+      toast.error(errorMessage(error, "Não foi possível alterar o status.")),
   });
 
   const [form, setForm] = useState(initialForm);
@@ -44,7 +62,9 @@ export default function PlatformAdmin() {
       <Card>
         <CardHeader>
           <CardTitle>Acesso restrito</CardTitle>
-          <CardDescription>Esta área é exclusiva da administração da plataforma.</CardDescription>
+          <CardDescription>
+            Esta área é exclusiva da administração da plataforma.
+          </CardDescription>
         </CardHeader>
       </Card>
     );
@@ -81,11 +101,14 @@ export default function PlatformAdmin() {
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-primary">
             <ShieldCheck className="h-5 w-5" />
-            <span className="text-sm font-medium">Administração da plataforma</span>
+            <span className="text-sm font-medium">
+              Administração da plataforma
+            </span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Paróquias</h1>
           <p className="text-sm text-muted-foreground">
-            Cadastre as paróquias participantes e libere o acesso somente depois de validar a adesão.
+            Cadastre as paróquias participantes e libere o acesso somente depois
+            de validar a adesão.
           </p>
         </div>
         <Button onClick={() => setOpen(value => !value)}>
@@ -99,37 +122,89 @@ export default function PlatformAdmin() {
           <CardHeader>
             <CardTitle>Cadastrar paróquia</CardTitle>
             <CardDescription>
-              A paróquia será criada como <strong>aguardando liberação</strong>. Depois da adesão,
-              você poderá ativá-la nesta mesma tela.
+              A paróquia será criada como <strong>aguardando liberação</strong>.
+              Depois da adesão, você poderá ativá-la nesta mesma tela.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-              <Field label="Nome da paróquia" value={form.name} onChange={v => update("name", v)} required />
-              <Field label="CNPJ / razão social (opcional)" value={form.legalName} onChange={v => update("legalName", v)} />
-              <Field label="Cidade" value={form.city} onChange={v => update("city", v)} />
-              <Field label="Estado" value={form.state} onChange={v => update("state", v)} />
-              <Field label="Telefone" value={form.phone} onChange={v => update("phone", v)} />
-              <Field label="E-mail da paróquia" type="email" value={form.parishEmail} onChange={v => update("parishEmail", v)} />
+              <Field
+                label="Nome da paróquia"
+                value={form.name}
+                onChange={v => update("name", v)}
+                required
+              />
+              <Field
+                label="CNPJ / razão social (opcional)"
+                value={form.legalName}
+                onChange={v => update("legalName", v)}
+              />
+              <Field
+                label="Cidade"
+                value={form.city}
+                onChange={v => update("city", v)}
+              />
+              <Field
+                label="Estado"
+                value={form.state}
+                onChange={v => update("state", v)}
+              />
+              <Field
+                label="Telefone"
+                value={form.phone}
+                onChange={v => update("phone", v)}
+              />
+              <Field
+                label="E-mail da paróquia"
+                type="email"
+                value={form.parishEmail}
+                onChange={v => update("parishEmail", v)}
+              />
 
               <div className="md:col-span-2 border-t pt-4">
-                <p className="mb-3 font-medium">Administrador inicial da paróquia</p>
+                <p className="mb-3 font-medium">
+                  Administrador inicial da paróquia
+                </p>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Nome" value={form.adminName} onChange={v => update("adminName", v)} required />
-                  <Field label="E-mail de acesso" type="email" value={form.adminEmail} onChange={v => update("adminEmail", v)} required />
-                  <Field label="Senha inicial" type="password" value={form.adminPassword} onChange={v => update("adminPassword", v)} required />
+                  <Field
+                    label="Nome"
+                    value={form.adminName}
+                    onChange={v => update("adminName", v)}
+                    required
+                  />
+                  <Field
+                    label="E-mail de acesso"
+                    type="email"
+                    value={form.adminEmail}
+                    onChange={v => update("adminEmail", v)}
+                    required
+                  />
+                  <Field
+                    label="Senha inicial"
+                    type="password"
+                    value={form.adminPassword}
+                    onChange={v => update("adminPassword", v)}
+                    required
+                  />
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  No primeiro acesso, o administrador será obrigado a trocar essa senha.
+                  No primeiro acesso, o administrador será obrigado a trocar
+                  essa senha.
                 </p>
               </div>
 
               <div className="flex justify-end gap-2 md:col-span-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                >
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={create.isPending}>
-                  {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {create.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
                   Cadastrar paróquia
                 </Button>
               </div>
@@ -148,13 +223,15 @@ export default function PlatformAdmin() {
         <CardHeader>
           <CardTitle>Paróquias cadastradas</CardTitle>
           <CardDescription>
-            A suspensão bloqueia novas sessões e invalida o acesso já existente na próxima validação da sessão.
+            A suspensão bloqueia novas sessões e invalida o acesso já existente
+            na próxima validação da sessão.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {parishes.isLoading ? (
             <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Carregando paróquias...
+              <Loader2 className="h-4 w-4 animate-spin" /> Carregando
+              paróquias...
             </div>
           ) : rows.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -163,24 +240,39 @@ export default function PlatformAdmin() {
           ) : (
             <div className="space-y-3">
               {rows.map(parish => (
-                <div key={parish.id} className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div
+                  key={parish.id}
+                  className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{parish.name}</p>
                       <StatusBadge status={parish.status} />
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {[parish.city, parish.state].filter(Boolean).join(" / ") || "Localização não informada"}
+                      {[parish.city, parish.state]
+                        .filter(Boolean)
+                        .join(" / ") || "Localização não informada"}
                       {" · "}
                       {parish.activeServers} servidor(es) ativo(s)
                     </p>
                   </div>
 
                   <div className="flex shrink-0 gap-2">
+                    <Button variant="outline" asChild>
+                      <a href={`/configuracoes?paroquia=${parish.id}`}>
+                        Gerenciar equipe
+                      </a>
+                    </Button>
                     {parish.status !== "ACTIVE" ? (
                       <Button
                         size="sm"
-                        onClick={() => setStatus.mutate({ parishId: parish.id, status: "ACTIVE" })}
+                        onClick={() =>
+                          setStatus.mutate({
+                            parishId: parish.id,
+                            status: "ACTIVE",
+                          })
+                        }
                         disabled={setStatus.isPending}
                       >
                         <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -190,7 +282,12 @@ export default function PlatformAdmin() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setStatus.mutate({ parishId: parish.id, status: "SUSPENDED" })}
+                        onClick={() =>
+                          setStatus.mutate({
+                            parishId: parish.id,
+                            status: "SUSPENDED",
+                          })
+                        }
                         disabled={setStatus.isPending}
                       >
                         <PauseCircle className="mr-2 h-4 w-4" />
@@ -208,8 +305,9 @@ export default function PlatformAdmin() {
       <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
         <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <p className="text-muted-foreground">
-          O administrador da plataforma não cadastra servidores, responsáveis ou escalas.
-          Depois de liberar a paróquia, o administrador daquela paróquia passa a cuidar da estrutura local.
+          Use Gerenciar equipe para cadastrar administradores e coordenadores na
+          paróquia escolhida. O administrador da paróquia cuida da estrutura local,
+          dos servidores e das escalas.
         </p>
       </div>
     </div>
@@ -232,14 +330,20 @@ function Field({
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Input type={type} value={value} onChange={event => onChange(event.target.value)} required={required} />
+      <Input
+        type={type}
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        required={required}
+      />
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "ACTIVE") return <Badge>LIBERADA</Badge>;
-  if (status === "SUSPENDED") return <Badge variant="destructive">SUSPENSA</Badge>;
+  if (status === "SUSPENDED")
+    return <Badge variant="destructive">SUSPENSA</Badge>;
   return <Badge variant="secondary">AGUARDANDO LIBERAÇÃO</Badge>;
 }
 
@@ -259,7 +363,9 @@ function Stat({
           <Icon className="h-5 w-5" />
         </span>
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
           <p className="text-2xl font-semibold">{value}</p>
         </div>
       </CardContent>

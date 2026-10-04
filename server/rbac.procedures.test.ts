@@ -7,9 +7,14 @@
  * procedures, sem depender do banco.
  */
 import { TRPCError } from "@trpc/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("./db", () => ({
+  getDbOrThrow: vi.fn(async () => ({ select: () => ({ from: () => ({ where: () => ({ limit: async () => [{ id: 12 }] }) }) }) })),
+}));
 
 import type { Actor } from "./auth/types";
+import { getDbOrThrow } from "./db";
 import {
   actorIsManager,
   authedProcedure,
@@ -53,7 +58,7 @@ function serverActor(overrides: Partial<Actor> = {}): Actor {
 }
 
 /** Monta um caller com um router mínimo que expõe o escopo resolvido. */
-function callerFor(actor: Actor | null) {
+function callerFor(actor: Actor | null, headers: Record<string, string> = {}) {
   const appRouter = router({
     authed: authedProcedure.query(({ ctx }) => ({ role: ctx.actor.role })),
     parish: parishProcedure.query(({ ctx }) => ({ parishId: ctx.parishId })),
@@ -67,7 +72,7 @@ function callerFor(actor: Actor | null) {
   const ctx = {
     actor,
     user: null,
-    req: { ip: "127.0.0.1", headers: {}, protocol: "https" },
+    req: { ip: "127.0.0.1", headers, protocol: "https" },
     res: { clearCookie: () => {}, cookie: () => {} },
   } as never;
 
@@ -93,6 +98,21 @@ describe("authedProcedure", () => {
 });
 
 describe("parishProcedure — isolamento multi-tenant", () => {
+  it("recusa paróquia selecionada inexistente", async () => {
+    vi.mocked(getDbOrThrow).mockResolvedValueOnce({ select: () => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }) } as never);
+    await expectCode(callerFor(userActor({ role: "SUPER_ADMIN", parishId: null }), { "x-platform-parish-id": "999" }).parish(), "NOT_FOUND");
+  });
+  it("permite seleção validada para SUPER_ADMIN sem vínculo paroquial", async () => {
+    await expect(callerFor(userActor({ role: "SUPER_ADMIN", parishId: null }), { "x-platform-parish-id": "12" }).parish()).resolves.toEqual({ parishId: 12 });
+  });
+
+  it("ignora seleção do cliente para administrador de paróquia", async () => {
+    await expect(callerFor(userActor({ role: "PARISH_ADMIN", parishId: 7 }), { "x-platform-parish-id": "12" }).parish()).resolves.toEqual({ parishId: 7 });
+  });
+
+  it("recusa identificador inválido selecionado pelo SUPER_ADMIN", async () => {
+    await expectCode(callerFor(userActor({ role: "SUPER_ADMIN", parishId: null }), { "x-platform-parish-id": "12abc" }).parish(), "BAD_REQUEST");
+  });
   it("deriva o parishId da sessão, não do cliente", async () => {
     const result = await callerFor(userActor({ parishId: 7 })).parish();
     expect(result).toEqual({ parishId: 7 });
