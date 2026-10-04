@@ -4,8 +4,7 @@
     "shared/**/*",
     "server/**/*",
     "scripts/**/*.ts",
-    "drizzle/**/*.ts",
-    "app.ts"
+    "drizzle/**/*.ts"
   ],
   "exclude": [
     "node_modules",

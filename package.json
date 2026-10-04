@@ -19,7 +19,7 @@
     "db:repair": "tsx scripts/database.ts repair",
     "admin:email": "tsx scripts/change-platform-admin-email.ts",
     "verify:local": "tsx scripts/verify-local.ts",
-    "build:vercel": "pnpm build && node scripts/build-vercel.mjs"
+    "build:vercel": "pnpm build && esbuild server/vercel.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/vercel.js && node scripts/build-vercel.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
