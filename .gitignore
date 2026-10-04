@@ -110,7 +110,7 @@ temp/
 .webdev/
 
 # Manus version file (auto-generated, not part of source)
-client/public/__manus__/version.json
+client__manus__/version.json
 .project-config.json
 /backups/
 /acesso-privado/

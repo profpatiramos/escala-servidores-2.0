@@ -7,6 +7,5 @@
       "source": "/((?!api/|healthz|assets/|.*\\.).*)",
       "destination": "/index.html"
     }
-  ],
-  "outputDirectory": "dist"
+  ]
 }
