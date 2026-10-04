@@ -110,7 +110,7 @@ temp/
 .webdev/
 
 # Manus version file (auto-generated, not part of source)
-client__manus__/version.json
+client/public/__manus__/version.json
 .project-config.json
 /backups/
 /acesso-privado/
@@ -119,5 +119,5 @@ client__manus__/version.json
 .env.*
 !.env.example
 /audit/
-/public/
+
 /.vercel/
