@@ -43,7 +43,7 @@ import {
 /** Garante que o ator pode consultar os dados do servidor informado. */
 export async function assertCanViewServer(
   ctx: { parishId: number; actor: any },
-  serverId: number,
+  serverId: number
 ): Promise<void> {
   const db = await getDbOrThrow();
 
@@ -67,8 +67,8 @@ export async function assertCanViewServer(
           eq(familyLinks.parishId, ctx.parishId),
           eq(familyLinks.serverId, serverId),
           eq(responsibles.userId, ctx.actor.user.id),
-          isNull(familyLinks.endedAt),
-        ),
+          isNull(familyLinks.endedAt)
+        )
       )
       .limit(1);
     if (!link) throw forbidden("Você não é responsável por este servidor.");
@@ -104,7 +104,7 @@ export const gamificationRouter = router({
           minorsRankingEnabled: z.boolean().optional(),
           historyEnabled: z.boolean().optional(),
           earlyConfirmationHours: z.number().int().min(1).max(720).optional(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -124,14 +124,19 @@ export const gamificationRouter = router({
 
         // Ranking de menores só faz sentido com o ranking habilitado.
         const rankingEnabled =
-          (patch.rankingEnabled as boolean | undefined) ?? current.rankingEnabled;
+          (patch.rankingEnabled as boolean | undefined) ??
+          current.rankingEnabled;
         const minorsEnabled =
-          (patch.minorsRankingEnabled as boolean | undefined) ?? current.minorsRankingEnabled;
+          (patch.minorsRankingEnabled as boolean | undefined) ??
+          current.minorsRankingEnabled;
         if (minorsEnabled && !rankingEnabled) {
-          throw badRequest("Habilite o ranking antes de incluir menores de idade nele.");
+          throw badRequest(
+            "Habilite o ranking antes de incluir menores de idade nele."
+          );
         }
 
-        patch.updatedByUserId = ctx.actor.type === "USER" ? ctx.actor.user.id : null;
+        patch.updatedByUserId =
+          ctx.actor.type === "USER" ? ctx.actor.user.id : null;
 
         await db
           .update(gamificationSettings)
@@ -152,6 +157,31 @@ export const gamificationRouter = router({
 
   /** Regras de pontuação configuráveis. */
   rules: router({
+    forParticipants: parishProcedure.query(async ({ ctx }) => {
+      const db = await getDbOrThrow();
+      const [settings] = await db
+        .select()
+        .from(gamificationSettings)
+        .where(eq(gamificationSettings.parishId, ctx.parishId))
+        .limit(1);
+      const rules = await db
+        .select({
+          eventType: pointRules.eventType,
+          points: pointRules.points,
+          description: pointRules.description,
+          enabled: pointRules.enabled,
+        })
+        .from(pointRules)
+        .where(eq(pointRules.parishId, ctx.parishId))
+        .orderBy(desc(pointRules.points));
+      return rules.map(rule => ({
+        ...rule,
+        effective:
+          !!settings?.enabled &&
+          rule.enabled &&
+          (rule.points >= 0 || !!settings?.penaltiesEnabled),
+      }));
+    }),
     list: coordinatorProcedure.query(async ({ ctx }) => {
       const db = await getDbOrThrow();
       return db
@@ -168,7 +198,7 @@ export const gamificationRouter = router({
           points: z.number().int().min(-100).max(100).optional(),
           enabled: z.boolean().optional(),
           description: z.string().trim().max(300).optional().nullable(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -179,8 +209,8 @@ export const gamificationRouter = router({
           .where(
             and(
               eq(pointRules.parishId, ctx.parishId),
-              eq(pointRules.eventType, input.eventType),
-            ),
+              eq(pointRules.eventType, input.eventType)
+            )
           )
           .limit(1);
         if (!rule) throw notFound("Regra de pontuação");
@@ -188,10 +218,14 @@ export const gamificationRouter = router({
         const patch: Record<string, unknown> = {};
         if (input.points !== undefined) patch.points = input.points;
         if (input.enabled !== undefined) patch.enabled = input.enabled;
-        if (input.description !== undefined) patch.description = input.description;
+        if (input.description !== undefined)
+          patch.description = input.description;
         if (Object.keys(patch).length === 0) return { success: true } as const;
 
-        await db.update(pointRules).set(patch).where(eq(pointRules.id, rule.id));
+        await db
+          .update(pointRules)
+          .set(patch)
+          .where(eq(pointRules.id, rule.id));
 
         await recordAudit(ctx.actor, {
           action: "GAMIFICATION_SETTINGS_UPDATED",
@@ -213,12 +247,18 @@ export const gamificationRouter = router({
       const db = await getDbOrThrow();
 
       const [settings] = await db
-        .select({ historyEnabled: gamificationSettings.historyEnabled, enabled: gamificationSettings.enabled })
+        .select({
+          historyEnabled: gamificationSettings.historyEnabled,
+          enabled: gamificationSettings.enabled,
+        })
         .from(gamificationSettings)
         .where(eq(gamificationSettings.parishId, ctx.parishId))
         .limit(1);
 
-      const balance = await getServerBalance({ parishId: ctx.parishId, serverId: input.serverId });
+      const balance = await getServerBalance({
+        parishId: ctx.parishId,
+        serverId: input.serverId,
+      });
 
       const history =
         settings?.historyEnabled === false
@@ -236,8 +276,8 @@ export const gamificationRouter = router({
               .where(
                 and(
                   eq(pointTransactions.parishId, ctx.parishId),
-                  eq(pointTransactions.serverId, input.serverId),
-                ),
+                  eq(pointTransactions.serverId, input.serverId)
+                )
               )
               .orderBy(desc(pointTransactions.createdAt))
               .limit(200);
@@ -252,12 +292,15 @@ export const gamificationRouter = router({
           grantedAt: serverAchievements.grantedAt,
         })
         .from(serverAchievements)
-        .innerJoin(achievements, eq(achievements.id, serverAchievements.achievementId))
+        .innerJoin(
+          achievements,
+          eq(achievements.id, serverAchievements.achievementId)
+        )
         .where(
           and(
             eq(serverAchievements.parishId, ctx.parishId),
-            eq(serverAchievements.serverId, input.serverId),
-          ),
+            eq(serverAchievements.serverId, input.serverId)
+          )
         )
         .orderBy(desc(serverAchievements.grantedAt));
 
@@ -274,9 +317,12 @@ export const gamificationRouter = router({
     .input(
       z.object({
         serverId: z.number().int().positive(),
-        pointsDelta: z.number().int().refine(v => v !== 0, "Informe um valor diferente de zero."),
+        pointsDelta: z
+          .number()
+          .int()
+          .refine(v => v !== 0, "Informe um valor diferente de zero."),
         reason: z.string().trim().min(5).max(500),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDbOrThrow();
@@ -284,7 +330,12 @@ export const gamificationRouter = router({
       const [server] = await db
         .select({ id: altarServers.id })
         .from(altarServers)
-        .where(and(eq(altarServers.id, input.serverId), eq(altarServers.parishId, ctx.parishId)))
+        .where(
+          and(
+            eq(altarServers.id, input.serverId),
+            eq(altarServers.parishId, ctx.parishId)
+          )
+        )
         .limit(1);
       if (!server) throw notFound("Servidor");
 
@@ -313,7 +364,7 @@ export const gamificationRouter = router({
       z.object({
         transactionId: z.number().int().positive(),
         reason: z.string().trim().min(5).max(500),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const result = await reverseTransaction({
@@ -323,7 +374,8 @@ export const gamificationRouter = router({
         createdByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
       });
 
-      if (!result.reversed) throw badRequest(result.message ?? "Não foi possível reverter.");
+      if (!result.reversed)
+        throw badRequest(result.message ?? "Não foi possível reverter.");
 
       await recordAudit(ctx.actor, {
         action: "POINTS_REVERSED",
@@ -354,7 +406,7 @@ export const gamificationRouter = router({
           serverId: z.number().int().positive(),
           achievementId: z.number().int().positive(),
           reason: z.string().trim().min(3).max(500),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -365,8 +417,8 @@ export const gamificationRouter = router({
           .where(
             and(
               eq(achievements.id, input.achievementId),
-              eq(achievements.parishId, ctx.parishId),
-            ),
+              eq(achievements.parishId, ctx.parishId)
+            )
           )
           .limit(1);
         if (!achievement) throw notFound("Conquista");
@@ -374,7 +426,12 @@ export const gamificationRouter = router({
         const [server] = await db
           .select({ id: altarServers.id })
           .from(altarServers)
-          .where(and(eq(altarServers.id, input.serverId), eq(altarServers.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(altarServers.id, input.serverId),
+              eq(altarServers.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!server) throw notFound("Servidor");
 
@@ -384,11 +441,12 @@ export const gamificationRouter = router({
           .where(
             and(
               eq(serverAchievements.serverId, input.serverId),
-              eq(serverAchievements.achievementId, input.achievementId),
-            ),
+              eq(serverAchievements.achievementId, input.achievementId)
+            )
           )
           .limit(1);
-        if (existing) throw badRequest("Este servidor já possui esta conquista.");
+        if (existing)
+          throw badRequest("Este servidor já possui esta conquista.");
 
         await db.insert(serverAchievements).values({
           parishId: ctx.parishId,
@@ -429,11 +487,19 @@ export const gamificationRouter = router({
     .input(
       z
         .object({
-          periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-          periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+          periodStart: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional()
+            .nullable(),
+          periodEnd: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional()
+            .nullable(),
           limit: z.number().int().min(1).max(100).default(20),
         })
-        .optional(),
+        .optional()
     )
     .query(async ({ ctx, input }) =>
       getRanking({
@@ -441,17 +507,22 @@ export const gamificationRouter = router({
         periodStart: input?.periodStart ?? null,
         periodEnd: input?.periodEnd ?? null,
         limit: input?.limit ?? 20,
-      }),
+      })
     ),
 
   /** Saldos de vários servidores, para a visão da coordenação. */
   balances: coordinatorProcedure
-    .input(z.object({ serverIds: z.array(z.number().int().positive()).max(300) }))
+    .input(
+      z.object({ serverIds: z.array(z.number().int().positive()).max(300) })
+    )
     .query(async ({ ctx, input }) => {
       const balances = await getBalances({
         parishId: ctx.parishId,
         serverIds: input.serverIds,
       });
-      return Array.from(balances.entries()).map(([serverId, points]) => ({ serverId, points }));
+      return Array.from(balances.entries()).map(([serverId, points]) => ({
+        serverId,
+        points,
+      }));
     }),
 });

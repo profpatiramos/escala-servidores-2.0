@@ -44,6 +44,7 @@ import { Switch } from "@/components/ui/switch";
 import { calculateAge, errorMessage, formatDate, isMinor } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
 import type { ServerStatus } from "@shared/domain";
+import PeopleImport from "@/components/PeopleImport";
 
 const STATUS_OPTIONS: Array<{ value: ServerStatus; label: string }> = [
   { value: "IN_FORMATION", label: "Em formação" },
@@ -62,9 +63,11 @@ export default function Servers() {
   const [search, setSearch] = useState("");
   const [includeInactive, setIncludeInactive] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [codeDialog, setCodeDialog] = useState<{ name: string; code: string; expiresAt?: Date } | null>(
-    null,
-  );
+  const [codeDialog, setCodeDialog] = useState<{
+    name: string;
+    code: string;
+    expiresAt?: Date;
+  } | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -80,7 +83,7 @@ export default function Servers() {
       search: search.trim().length > 0 ? search.trim() : undefined,
       includeInactive,
     }),
-    [search, includeInactive],
+    [search, includeInactive]
   );
 
   const list = trpc.people.servers.list.useQuery(query);
@@ -97,7 +100,9 @@ export default function Servers() {
         motherName: "",
         status: "IN_FORMATION",
       });
-      toast.success("Servidor cadastrado. Gere o código de ativação para o primeiro acesso.");
+      toast.success(
+        "Servidor cadastrado. Gere o código de ativação para o primeiro acesso."
+      );
     },
     onError: error => toast.error(errorMessage(error)),
   });
@@ -117,7 +122,9 @@ export default function Servers() {
   const createAccess = trpc.people.access.create.useMutation({
     onSuccess: () => {
       void utils.people.servers.list.invalidate();
-      toast.success("Credencial criada. Gere o código de ativação para entregar ao servidor.");
+      toast.success(
+        "Credencial criada. Gere o código de ativação para entregar ao servidor."
+      );
     },
     onError: error => toast.error(errorMessage(error)),
   });
@@ -125,7 +132,9 @@ export default function Servers() {
   const setBlocked = trpc.people.access.setBlocked.useMutation({
     onSuccess: (_data, variables) => {
       void utils.people.servers.list.invalidate();
-      toast.success(variables.blocked ? "Acesso bloqueado." : "Acesso desbloqueado.");
+      toast.success(
+        variables.blocked ? "Acesso bloqueado." : "Acesso desbloqueado."
+      );
     },
     onError: error => toast.error(errorMessage(error)),
   });
@@ -141,10 +150,13 @@ export default function Servers() {
             Cadastro pastoral, habilitações e credenciais de acesso.
           </p>
         </div>
-        <Button className="gap-2" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Novo servidor
-        </Button>
+        <div className="flex gap-2">
+          <PeopleImport />
+          <Button className="gap-2" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Novo servidor
+          </Button>
+        </div>
       </header>
 
       <Card>
@@ -206,7 +218,9 @@ export default function Servers() {
                       >
                         {server.name}
                       </Link>
-                      <Badge variant="outline">{STATUS_LABELS[server.status] ?? server.status}</Badge>
+                      <Badge variant="outline">
+                        {STATUS_LABELS[server.status] ?? server.status}
+                      </Badge>
                       {minor && (
                         <Badge variant="secondary" className="gap-1">
                           <ShieldCheck className="h-3 w-3" />
@@ -216,12 +230,15 @@ export default function Servers() {
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {age !== null ? `${age} anos` : "Idade não informada"}
-                      {server.joinedAt ? ` · desde ${formatDate(server.joinedAt)}` : ""}
+                      {server.joinedAt
+                        ? ` · desde ${formatDate(server.joinedAt)}`
+                        : ""}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {server.accessId ? (
                         <>
-                          ID de acesso: <span className="font-mono">{server.accessId}</span>
+                          ID de acesso:{" "}
+                          <span className="font-mono">{server.accessId}</span>
                           {" · "}
                           {server.accessStatus === "PENDING_ACTIVATION"
                             ? "aguardando ativação"
@@ -243,7 +260,9 @@ export default function Servers() {
                         size="sm"
                         variant="outline"
                         className="gap-2 bg-background"
-                        onClick={() => createAccess.mutate({ serverId: server.id })}
+                        onClick={() =>
+                          createAccess.mutate({ serverId: server.id })
+                        }
                         disabled={createAccess.isPending}
                       >
                         <KeyRound className="h-4 w-4" />
@@ -255,7 +274,9 @@ export default function Servers() {
                           size="sm"
                           variant="outline"
                           className="gap-2 bg-background"
-                          onClick={() => issueCode.mutate({ serverId: server.id })}
+                          onClick={() =>
+                            issueCode.mutate({ serverId: server.id })
+                          }
                           disabled={issueCode.isPending}
                         >
                           <KeyRound className="h-4 w-4" />
@@ -310,7 +331,9 @@ export default function Servers() {
               <Input
                 id="name"
                 value={form.name}
-                onChange={event => setForm({ ...form, name: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, name: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -319,7 +342,9 @@ export default function Servers() {
                 id="birthDate"
                 type="date"
                 value={form.birthDate}
-                onChange={event => setForm({ ...form, birthDate: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, birthDate: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -330,7 +355,9 @@ export default function Servers() {
                 inputMode="numeric"
                 placeholder="145"
                 value={form.heightCm}
-                onChange={event => setForm({ ...form, heightCm: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, heightCm: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -338,7 +365,9 @@ export default function Servers() {
               <Input
                 id="motherName"
                 value={form.motherName}
-                onChange={event => setForm({ ...form, motherName: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, motherName: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -346,14 +375,18 @@ export default function Servers() {
               <Input
                 id="fatherName"
                 value={form.fatherName}
-                onChange={event => setForm({ ...form, fatherName: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, fatherName: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="status">Situação</Label>
               <Select
                 value={form.status}
-                onValueChange={value => setForm({ ...form, status: value as ServerStatus })}
+                onValueChange={value =>
+                  setForm({ ...form, status: value as ServerStatus })
+                }
               >
                 <SelectTrigger id="status">
                   <SelectValue />
@@ -378,18 +411,29 @@ export default function Servers() {
                 create.mutate({
                   name: form.name.trim(),
                   birthDate: form.birthDate,
-                  heightCm: form.heightCm.length > 0 ? Number(form.heightCm) : null,
-                  fatherName: form.fatherName.trim().length > 0 ? form.fatherName.trim() : null,
-                  motherName: form.motherName.trim().length > 0 ? form.motherName.trim() : null,
+                  heightCm:
+                    form.heightCm.length > 0 ? Number(form.heightCm) : null,
+                  fatherName:
+                    form.fatherName.trim().length > 0
+                      ? form.fatherName.trim()
+                      : null,
+                  motherName:
+                    form.motherName.trim().length > 0
+                      ? form.motherName.trim()
+                      : null,
                   status: form.status,
                   createAccess: true,
                 })
               }
               disabled={
-                create.isPending || form.name.trim().length < 3 || form.birthDate.length === 0
+                create.isPending ||
+                form.name.trim().length < 3 ||
+                form.birthDate.length === 0
               }
             >
-              {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {create.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Cadastrar
             </Button>
           </DialogFooter>
@@ -397,13 +441,16 @@ export default function Servers() {
       </Dialog>
 
       {/* O código aparece uma única vez: é entregue em mão, não fica guardado em tela. */}
-      <Dialog open={codeDialog !== null} onOpenChange={open => !open && setCodeDialog(null)}>
+      <Dialog
+        open={codeDialog !== null}
+        onOpenChange={open => !open && setCodeDialog(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Código de ativação</DialogTitle>
             <DialogDescription>
-              Entregue este código a {codeDialog?.name}. Ele serve uma única vez e
-              não poderá ser consultado depois.
+              Entregue este código a {codeDialog?.name}. Ele serve uma única vez
+              e não poderá ser consultado depois.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border bg-muted/50 p-6 text-center">

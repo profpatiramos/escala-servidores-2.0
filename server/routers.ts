@@ -10,6 +10,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { authRouter } from "./routers/auth";
 import { parishesRouter } from "./routers/parishes";
 import { peopleRouter } from "./routers/people";
+import { peopleImportRouter } from "./routers/peopleImport";
 import { availabilityRouter } from "./routers/availability";
 import { schedulesRouter } from "./routers/schedules";
 import { confirmationsRouter } from "./routers/confirmations";
@@ -38,6 +39,7 @@ export const appRouter = router({
 
   /** Autenticação própria da aplicação: e-mail/senha e ID+PIN. */
   access: authRouter,
+  peopleImport: peopleImportRouter,
 
   /** Paróquias, configurações operacionais e membros. */
   parishes: parishesRouter,

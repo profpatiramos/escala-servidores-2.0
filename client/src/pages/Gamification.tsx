@@ -11,7 +11,13 @@ import { Award, Info, Medal, Trophy } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -29,7 +35,7 @@ import { POINT_EVENT_LABELS } from "@shared/domain";
 export default function Gamification() {
   const { session, isManager } = useSession();
   const [selectedServerId, setSelectedServerId] = useState<number | null>(
-    session?.serverId ?? null,
+    session?.serverId ?? null
   );
 
   const dependents = trpc.people.myDependents.useQuery(undefined, {
@@ -37,31 +43,42 @@ export default function Gamification() {
   });
   const servers = trpc.people.servers.list.useQuery(
     { includeInactive: false },
-    { enabled: isManager },
+    { enabled: isManager }
   );
 
   const options = useMemo(() => {
     if (session?.role === "SERVER") {
-      return session.serverId ? [{ id: session.serverId, name: session.displayName }] : [];
+      return session.serverId
+        ? [{ id: session.serverId, name: session.displayName }]
+        : [];
     }
     if (session?.role === "RESPONSIBLE") {
-      return (dependents.data ?? []).map(dep => ({ id: dep.id, name: dep.name }));
+      return (dependents.data ?? []).map(dep => ({
+        id: dep.id,
+        name: dep.name,
+      }));
     }
-    return (servers.data ?? []).map(server => ({ id: server.id, name: server.name }));
+    return (servers.data ?? []).map(server => ({
+      id: server.id,
+      name: server.name,
+    }));
   }, [session, dependents.data, servers.data]);
 
   const effectiveServerId = selectedServerId ?? options[0]?.id ?? null;
 
   const balance = trpc.gamification.balance.useQuery(
     { serverId: effectiveServerId ?? 0 },
-    { enabled: effectiveServerId !== null },
+    { enabled: effectiveServerId !== null }
   );
   const ranking = trpc.gamification.ranking.useQuery({ limit: 20 });
+  const rules = trpc.gamification.rules.forParticipants.useQuery();
 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Reconhecimento</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Reconhecimento
+        </h1>
         <p className="text-sm text-muted-foreground">
           Pontos e conquistas por participação no serviço do altar.
         </p>
@@ -78,7 +95,9 @@ export default function Gamification() {
             <Card>
               <CardContent className="p-5">
                 <Select
-                  value={effectiveServerId ? String(effectiveServerId) : undefined}
+                  value={
+                    effectiveServerId ? String(effectiveServerId) : undefined
+                  }
                   onValueChange={value => setSelectedServerId(Number(value))}
                 >
                   <SelectTrigger className="max-w-xs">
@@ -132,9 +151,12 @@ export default function Gamification() {
 
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Histórico de pontos</CardTitle>
+                  <CardTitle className="text-base">
+                    Histórico de pontos
+                  </CardTitle>
                   <CardDescription>
-                    O saldo é sempre a soma das transações — nada é editado diretamente.
+                    O saldo é sempre a soma das transações — nada é editado
+                    diretamente.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -151,7 +173,9 @@ export default function Gamification() {
                         >
                           <div className="min-w-0">
                             <p className="text-sm font-medium">
-                              {tx.reason ?? POINT_EVENT_LABELS[tx.eventType] ?? tx.eventType}
+                              {tx.reason ??
+                                POINT_EVENT_LABELS[tx.eventType] ??
+                                tx.eventType}
                               {tx.isReversal ? " (estorno)" : ""}
                             </p>
                             <p className="text-xs text-muted-foreground">
@@ -182,7 +206,11 @@ export default function Gamification() {
                   </CardHeader>
                   <CardContent className="flex flex-wrap gap-2">
                     {(balance.data.achievements ?? []).map(achievement => (
-                      <Badge key={achievement.id} variant="secondary" className="gap-1.5 py-1.5">
+                      <Badge
+                        key={achievement.id}
+                        variant="secondary"
+                        className="gap-1.5 py-1.5"
+                      >
                         <Award className="h-3.5 w-3.5" />
                         {achievement.name}
                       </Badge>
@@ -228,7 +256,9 @@ export default function Gamification() {
                     <span className="w-6 shrink-0 text-sm font-semibold tabular-nums text-muted-foreground">
                       {index + 1}
                     </span>
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{entry.name}</p>
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {entry.name}
+                    </p>
                     <span className="shrink-0 text-sm font-semibold tabular-nums">
                       {entry.points}
                     </span>
@@ -239,6 +269,47 @@ export default function Gamification() {
           )}
         </TabsContent>
       </Tabs>
+      <Card>
+        <CardHeader>
+          <CardTitle>Como funciona a pontuação</CardTitle>
+          <CardDescription>
+            Regras da sua paróquia. Regras desativadas não alteram seu saldo. O
+            ranking pode estar desligado mesmo com pontuação ativa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {rules.isLoading ? (
+            <Skeleton className="h-20" />
+          ) : rules.error ? (
+            <p role="alert">
+              Não foi possível carregar as regras. Tente novamente.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {(rules.data ?? []).map(rule => (
+                <li
+                  key={rule.eventType}
+                  className="flex items-center justify-between gap-4 py-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium">
+                      {POINT_EVENT_LABELS[rule.eventType]}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {rule.description}
+                    </p>
+                  </div>
+                  <Badge variant={rule.effective ? "default" : "secondary"}>
+                    {rule.effective
+                      ? `${rule.points > 0 ? "+" : ""}${rule.points} pontos`
+                      : "Desativada"}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

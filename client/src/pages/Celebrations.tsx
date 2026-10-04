@@ -30,7 +30,10 @@ import { trpc } from "@/lib/trpc";
 
 import type { CelebrationType } from "@shared/domain";
 
-const CELEBRATION_TYPE_OPTIONS: Array<{ value: CelebrationType; label: string }> = [
+const CELEBRATION_TYPE_OPTIONS: Array<{
+  value: CelebrationType;
+  label: string;
+}> = [
   { value: "SUNDAY_MASS", label: "Missa dominical" },
   { value: "WEEKDAY_MASS", label: "Missa de semana" },
   { value: "SOLEMNITY", label: "Solenidade" },
@@ -52,6 +55,21 @@ export default function Celebrations() {
   const [from, setFrom] = useState(() => isoDate(0));
   const [to, setTo] = useState(() => isoDate(60));
   const [createOpen, setCreateOpen] = useState(false);
+  const [copy, setCopy] = useState<{
+    id: number;
+    title: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
+  const duplicate = trpc.schedules.celebrations.duplicate.useMutation({
+    onSuccess: () => {
+      void utils.schedules.celebrations.list.invalidate();
+      setCopy(null);
+      toast.success("Celebração duplicada com escala em rascunho.");
+    },
+    onError: error => toast.error(errorMessage(error)),
+  });
 
   const [form, setForm] = useState({
     title: "",
@@ -119,7 +137,8 @@ export default function Celebrations() {
             />
           </div>
           <p className="ml-auto text-sm text-muted-foreground">
-            {items.length} {items.length === 1 ? "celebração" : "celebrações"} no período
+            {items.length} {items.length === 1 ? "celebração" : "celebrações"}{" "}
+            no período
           </p>
         </CardContent>
       </Card>
@@ -145,29 +164,45 @@ export default function Celebrations() {
       ) : (
         <div className="space-y-2">
           {items.map(celebration => (
-            <Link
-              key={celebration.id}
-              href={`/celebracoes/${celebration.id}`}
-              className="block rounded-lg border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/40"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{celebration.title}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDateLong(celebration.date)} às {formatTime(celebration.startTime)}
-                    {celebration.location ? ` · ${celebration.location}` : ""}
-                  </p>
+            <div key={celebration.id} className="flex items-center gap-2">
+              <Link
+                href={`/celebracoes/${celebration.id}`}
+                className="block rounded-lg border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/40"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{celebration.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatDateLong(celebration.date)} às{" "}
+                      {formatTime(celebration.startTime)}
+                      {celebration.location ? ` · ${celebration.location}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {celebration.status === "CANCELLED" && (
+                      <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
+                        Celebração cancelada
+                      </span>
+                    )}
+                    <ScheduleStatusBadge status={celebration.scheduleStatus} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {celebration.status === "CANCELLED" && (
-                    <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
-                      Celebração cancelada
-                    </span>
-                  )}
-                  <ScheduleStatusBadge status={celebration.scheduleStatus} />
-                </div>
-              </div>
-            </Link>
+              </Link>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setCopy({
+                    id: celebration.id,
+                    title: celebration.title,
+                    date: celebration.date,
+                    startTime: celebration.startTime.slice(0, 5),
+                    endTime: celebration.endTime.slice(0, 5),
+                  })
+                }
+              >
+                Duplicar
+              </Button>
+            </div>
           ))}
         </div>
       )}
@@ -188,7 +223,9 @@ export default function Celebrations() {
                 id="title"
                 placeholder="Missa dominical das 19h"
                 value={form.title}
-                onChange={event => setForm({ ...form, title: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, title: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -196,7 +233,10 @@ export default function Celebrations() {
               <Select
                 value={form.celebrationType}
                 onValueChange={value =>
-                  setForm({ ...form, celebrationType: value as CelebrationType })
+                  setForm({
+                    ...form,
+                    celebrationType: value as CelebrationType,
+                  })
                 }
               >
                 <SelectTrigger id="type">
@@ -217,7 +257,9 @@ export default function Celebrations() {
                 id="date"
                 type="date"
                 value={form.date}
-                onChange={event => setForm({ ...form, date: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, date: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -226,7 +268,9 @@ export default function Celebrations() {
                 id="startTime"
                 type="time"
                 value={form.startTime}
-                onChange={event => setForm({ ...form, startTime: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, startTime: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -235,7 +279,9 @@ export default function Celebrations() {
                 id="endTime"
                 type="time"
                 value={form.endTime}
-                onChange={event => setForm({ ...form, endTime: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, endTime: event.target.value })
+                }
               />
             </div>
             <div className="space-y-2 sm:col-span-2">
@@ -244,7 +290,9 @@ export default function Celebrations() {
                 id="location"
                 placeholder="Igreja Matriz"
                 value={form.location}
-                onChange={event => setForm({ ...form, location: event.target.value })}
+                onChange={event =>
+                  setForm({ ...form, location: event.target.value })
+                }
               />
             </div>
           </div>
@@ -261,17 +309,90 @@ export default function Celebrations() {
                   date: form.date,
                   startTime: form.startTime,
                   endTime: form.endTime,
-                  location: form.location.trim().length > 0 ? form.location.trim() : null,
+                  location:
+                    form.location.trim().length > 0
+                      ? form.location.trim()
+                      : null,
                 })
               }
               disabled={
-                create.isPending || form.title.trim().length < 3 || form.endTime.length === 0
+                create.isPending ||
+                form.title.trim().length < 3 ||
+                form.endTime.length === 0
               }
             >
-              {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {create.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Criar celebração
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={copy !== null}
+        onOpenChange={value => {
+          if (!value && !duplicate.isPending) setCopy(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicar celebração</DialogTitle>
+            <DialogDescription>
+              {copy?.title} — serão copiadas as funções e quantidades
+              necessárias. A nova escala começa vazia, em rascunho, sem
+              confirmações nem presenças.
+            </DialogDescription>
+          </DialogHeader>
+          {copy && (
+            <>
+              <Label htmlFor="copyDate">Nova data</Label>
+              <Input
+                id="copyDate"
+                type="date"
+                value={copy.date}
+                onChange={event =>
+                  setCopy({ ...copy, date: event.target.value })
+                }
+              />
+              <Label htmlFor="copyStart">Início</Label>
+              <Input
+                id="copyStart"
+                type="time"
+                value={copy.startTime}
+                onChange={event =>
+                  setCopy({ ...copy, startTime: event.target.value })
+                }
+              />
+              <Label htmlFor="copyEnd">Término</Label>
+              <Input
+                id="copyEnd"
+                type="time"
+                value={copy.endTime}
+                onChange={event =>
+                  setCopy({ ...copy, endTime: event.target.value })
+                }
+              />
+              <Button
+                disabled={
+                  duplicate.isPending ||
+                  !copy.date ||
+                  !copy.startTime ||
+                  !copy.endTime
+                }
+                onClick={() =>
+                  duplicate.mutate({
+                    id: copy.id,
+                    date: copy.date,
+                    startTime: copy.startTime,
+                    endTime: copy.endTime,
+                  })
+                }
+              >
+                {duplicate.isPending ? "Duplicando…" : "Criar cópia"}
+              </Button>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

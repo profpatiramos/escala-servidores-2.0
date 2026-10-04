@@ -29,7 +29,10 @@ import {
 import { getDbOrThrow } from "../db";
 import { recordAudit } from "../services/audit";
 import { notifyScheduleParticipants } from "../services/notifications";
-import { listEligibleServers, validateAssignments } from "../services/scheduleValidation";
+import {
+  listEligibleServers,
+  validateAssignments,
+} from "../services/scheduleValidation";
 import {
   badRequest,
   coordinatorProcedure,
@@ -39,8 +42,12 @@ import {
   router,
 } from "../trpc";
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use o formato AAAA-MM-DD.");
-const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Horário inválido.");
+const dateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use o formato AAAA-MM-DD.");
+const timeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Horário inválido.");
 
 function normalizeTime(value: string): string {
   return value.length === 5 ? `${value}:00` : value;
@@ -70,7 +77,7 @@ export const schedulesRouter = router({
           from: dateSchema,
           to: dateSchema,
           status: z.enum(CELEBRATION_STATUS).optional(),
-        }),
+        })
       )
       .query(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -80,7 +87,8 @@ export const schedulesRouter = router({
           gte(celebrations.date, input.from),
           lte(celebrations.date, input.to),
         ];
-        if (input.status) conditions.push(eq(celebrations.status, input.status));
+        if (input.status)
+          conditions.push(eq(celebrations.status, input.status));
 
         const rows = await db
           .select({
@@ -112,12 +120,15 @@ export const schedulesRouter = router({
             quantity: celebrationRoleNeeds.quantity,
           })
           .from(celebrationRoleNeeds)
-          .innerJoin(parishRoles, eq(parishRoles.id, celebrationRoleNeeds.parishRoleId))
+          .innerJoin(
+            parishRoles,
+            eq(parishRoles.id, celebrationRoleNeeds.parishRoleId)
+          )
           .where(
             and(
               eq(celebrationRoleNeeds.parishId, ctx.parishId),
-              inArray(celebrationRoleNeeds.celebrationId, celebrationIds),
-            ),
+              inArray(celebrationRoleNeeds.celebrationId, celebrationIds)
+            )
           );
 
         const filled = await db
@@ -131,21 +142,30 @@ export const schedulesRouter = router({
             and(
               eq(scheduleAssignments.parishId, ctx.parishId),
               inArray(scheduleAssignments.celebrationId, celebrationIds),
-              inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"]),
-            ),
+              inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"])
+            )
           );
 
         return rows.map(row => {
-          const celebrationNeeds = needs.filter(n => n.celebrationId === row.id);
-          const celebrationFilled = filled.filter(f => f.celebrationId === row.id);
-          const totalNeeded = celebrationNeeds.reduce((sum, n) => sum + n.quantity, 0);
+          const celebrationNeeds = needs.filter(
+            n => n.celebrationId === row.id
+          );
+          const celebrationFilled = filled.filter(
+            f => f.celebrationId === row.id
+          );
+          const totalNeeded = celebrationNeeds.reduce(
+            (sum, n) => sum + n.quantity,
+            0
+          );
           return {
             ...row,
             needs: celebrationNeeds.map(n => ({
               parishRoleId: n.parishRoleId,
               roleName: n.roleName,
               quantity: n.quantity,
-              filled: celebrationFilled.filter(f => f.parishRoleId === n.parishRoleId).length,
+              filled: celebrationFilled.filter(
+                f => f.parishRoleId === n.parishRoleId
+              ).length,
             })),
             totalNeeded,
             totalFilled: celebrationFilled.length,
@@ -169,15 +189,16 @@ export const schedulesRouter = router({
                 parishRoleId: z.number().int().positive(),
                 quantity: z.number().int().min(1).max(50),
                 requirements: z.string().trim().max(500).optional().nullable(),
-              }),
+              })
             )
             .default([]),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const startTime = normalizeTime(input.startTime);
         const endTime = normalizeTime(input.endTime);
-        if (startTime >= endTime) throw badRequest("O horário de término deve ser depois do início.");
+        if (startTime >= endTime)
+          throw badRequest("O horário de término deve ser depois do início.");
 
         const db = await getDbOrThrow();
 
@@ -187,9 +208,16 @@ export const schedulesRouter = router({
           const roles = await db
             .select({ id: parishRoles.id })
             .from(parishRoles)
-            .where(and(eq(parishRoles.parishId, ctx.parishId), inArray(parishRoles.id, roleIds)));
+            .where(
+              and(
+                eq(parishRoles.parishId, ctx.parishId),
+                inArray(parishRoles.id, roleIds)
+              )
+            );
           if (roles.length !== new Set(roleIds).size) {
-            throw badRequest("Uma das funções informadas não pertence a esta paróquia.");
+            throw badRequest(
+              "Uma das funções informadas não pertence a esta paróquia."
+            );
           }
         }
 
@@ -222,7 +250,7 @@ export const schedulesRouter = router({
               parishRoleId: need.parishRoleId,
               quantity: need.quantity,
               requirements: need.requirements ?? null,
-            })),
+            }))
           );
         }
 
@@ -234,7 +262,8 @@ export const schedulesRouter = router({
           periodEnd: input.date,
           status: "DRAFT",
           source: "MANUAL",
-          generatedByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+          generatedByUserId:
+            ctx.actor.type === "USER" ? ctx.actor.user.id : null,
         });
 
         await recordAudit(ctx.actor, {
@@ -248,6 +277,94 @@ export const schedulesRouter = router({
         return { id: created.id } as const;
       }),
 
+    duplicate: coordinatorProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          date: dateSchema,
+          startTime: timeSchema,
+          endTime: timeSchema,
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const startTime = normalizeTime(input.startTime),
+          endTime = normalizeTime(input.endTime);
+        if (startTime >= endTime)
+          throw badRequest("O horário de término deve ser depois do início.");
+        const db = await getDbOrThrow();
+        const created = await db.transaction(async tx => {
+          const [source] = await tx
+            .select()
+            .from(celebrations)
+            .where(
+              and(
+                eq(celebrations.id, input.id),
+                eq(celebrations.parishId, ctx.parishId)
+              )
+            )
+            .limit(1);
+          if (!source) throw notFound("Celebração");
+          const [copy] = await tx
+            .insert(celebrations)
+            .values({
+              parishId: ctx.parishId,
+              title: source.title,
+              celebrationType: source.celebrationType,
+              date: input.date,
+              startTime,
+              endTime,
+              location: source.location,
+              notes: source.notes,
+              status: "SCHEDULED",
+              createdByUserId:
+                ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+            })
+            .returning({ id: celebrations.id });
+          const needs = await tx
+            .select()
+            .from(celebrationRoleNeeds)
+            .where(
+              and(
+                eq(celebrationRoleNeeds.celebrationId, source.id),
+                eq(celebrationRoleNeeds.parishId, ctx.parishId)
+              )
+            );
+          if (needs.length)
+            await tx
+              .insert(celebrationRoleNeeds)
+              .values(
+                needs.map(need => ({
+                  parishId: ctx.parishId,
+                  celebrationId: copy.id,
+                  parishRoleId: need.parishRoleId,
+                  quantity: need.quantity,
+                  requirements: need.requirements,
+                }))
+              );
+          await tx
+            .insert(schedules)
+            .values({
+              parishId: ctx.parishId,
+              celebrationId: copy.id,
+              periodStart: input.date,
+              periodEnd: input.date,
+              status: "DRAFT",
+              source: "MANUAL",
+              generatedByUserId:
+                ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+            });
+          return copy;
+        });
+        await recordAudit(ctx.actor, {
+          action: "CELEBRATION_CREATED",
+          entityType: "celebration",
+          entityId: created.id,
+          metadata: { copiedFrom: input.id, date: input.date },
+          ...requestMeta(ctx),
+        });
+        return created;
+      }),
+
     update: coordinatorProcedure
       .input(
         z.object({
@@ -259,7 +376,7 @@ export const schedulesRouter = router({
           endTime: timeSchema.optional(),
           location: z.string().trim().max(180).optional().nullable(),
           notes: z.string().trim().max(1000).optional().nullable(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -267,16 +384,26 @@ export const schedulesRouter = router({
         const [existing] = await db
           .select()
           .from(celebrations)
-          .where(and(eq(celebrations.id, input.id), eq(celebrations.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(celebrations.id, input.id),
+              eq(celebrations.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Celebração");
         if (existing.status === "CANCELLED") {
           throw badRequest("Não é possível editar uma celebração cancelada.");
         }
 
-        const startTime = input.startTime ? normalizeTime(input.startTime) : existing.startTime;
-        const endTime = input.endTime ? normalizeTime(input.endTime) : existing.endTime;
-        if (startTime >= endTime) throw badRequest("O horário de término deve ser depois do início.");
+        const startTime = input.startTime
+          ? normalizeTime(input.startTime)
+          : existing.startTime;
+        const endTime = input.endTime
+          ? normalizeTime(input.endTime)
+          : existing.endTime;
+        if (startTime >= endTime)
+          throw badRequest("O horário de término deve ser depois do início.");
 
         await db
           .update(celebrations)
@@ -288,7 +415,9 @@ export const schedulesRouter = router({
             ...(input.date !== undefined ? { date: input.date } : {}),
             ...(input.startTime !== undefined ? { startTime } : {}),
             ...(input.endTime !== undefined ? { endTime } : {}),
-            ...(input.location !== undefined ? { location: input.location } : {}),
+            ...(input.location !== undefined
+              ? { location: input.location }
+              : {}),
             ...(input.notes !== undefined ? { notes: input.notes } : {}),
           })
           .where(eq(celebrations.id, input.id));
@@ -320,8 +449,8 @@ export const schedulesRouter = router({
               and(
                 eq(scheduleAssignments.celebrationId, input.id),
                 eq(scheduleAssignments.parishId, ctx.parishId),
-                inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"]),
-              ),
+                inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"])
+              )
             );
 
           if (current.length > 0) {
@@ -335,10 +464,17 @@ export const schedulesRouter = router({
           // Se a escala já estava publicada, mudar data ou horário altera o
           // compromisso de quem já confirmou. Gera nova versão e reavisa todos.
           const [linkedSchedule] = await db
-            .select({ id: schedules.id, status: schedules.status, version: schedules.version })
+            .select({
+              id: schedules.id,
+              status: schedules.status,
+              version: schedules.version,
+            })
             .from(schedules)
             .where(
-              and(eq(schedules.celebrationId, input.id), eq(schedules.parishId, ctx.parishId)),
+              and(
+                eq(schedules.celebrationId, input.id),
+                eq(schedules.parishId, ctx.parishId)
+              )
             )
             .limit(1);
 
@@ -373,9 +509,9 @@ export const schedulesRouter = router({
               parishRoleId: z.number().int().positive(),
               quantity: z.number().int().min(1).max(50),
               requirements: z.string().trim().max(500).optional().nullable(),
-            }),
+            })
           ),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -384,7 +520,10 @@ export const schedulesRouter = router({
           .select({ id: celebrations.id })
           .from(celebrations)
           .where(
-            and(eq(celebrations.id, input.celebrationId), eq(celebrations.parishId, ctx.parishId)),
+            and(
+              eq(celebrations.id, input.celebrationId),
+              eq(celebrations.parishId, ctx.parishId)
+            )
           )
           .limit(1);
         if (!celebration) throw notFound("Celebração");
@@ -398,9 +537,16 @@ export const schedulesRouter = router({
           const roles = await db
             .select({ id: parishRoles.id })
             .from(parishRoles)
-            .where(and(eq(parishRoles.parishId, ctx.parishId), inArray(parishRoles.id, roleIds)));
+            .where(
+              and(
+                eq(parishRoles.parishId, ctx.parishId),
+                inArray(parishRoles.id, roleIds)
+              )
+            );
           if (roles.length !== roleIds.length) {
-            throw badRequest("Uma das funções informadas não pertence a esta paróquia.");
+            throw badRequest(
+              "Uma das funções informadas não pertence a esta paróquia."
+            );
           }
         }
 
@@ -409,8 +555,8 @@ export const schedulesRouter = router({
           .where(
             and(
               eq(celebrationRoleNeeds.celebrationId, input.celebrationId),
-              eq(celebrationRoleNeeds.parishId, ctx.parishId),
-            ),
+              eq(celebrationRoleNeeds.parishId, ctx.parishId)
+            )
           );
 
         if (input.needs.length > 0) {
@@ -421,7 +567,7 @@ export const schedulesRouter = router({
               parishRoleId: need.parishRoleId,
               quantity: need.quantity,
               requirements: need.requirements ?? null,
-            })),
+            }))
           );
         }
 
@@ -441,7 +587,7 @@ export const schedulesRouter = router({
         z.object({
           id: z.number().int().positive(),
           reason: z.string().trim().max(500).optional(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -449,7 +595,12 @@ export const schedulesRouter = router({
         const [existing] = await db
           .select()
           .from(celebrations)
-          .where(and(eq(celebrations.id, input.id), eq(celebrations.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(celebrations.id, input.id),
+              eq(celebrations.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Celebração");
 
@@ -463,7 +614,10 @@ export const schedulesRouter = router({
           .update(schedules)
           .set({ status: "CANCELLED" })
           .where(
-            and(eq(schedules.celebrationId, input.id), eq(schedules.parishId, ctx.parishId)),
+            and(
+              eq(schedules.celebrationId, input.id),
+              eq(schedules.parishId, ctx.parishId)
+            )
           );
 
         await db
@@ -473,8 +627,8 @@ export const schedulesRouter = router({
             and(
               eq(scheduleAssignments.celebrationId, input.id),
               eq(scheduleAssignments.parishId, ctx.parishId),
-              inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"]),
-            ),
+              inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"])
+            )
           );
 
         await recordAudit(ctx.actor, {
@@ -511,7 +665,10 @@ export const schedulesRouter = router({
         .select()
         .from(celebrations)
         .where(
-          and(eq(celebrations.id, input.celebrationId), eq(celebrations.parishId, ctx.parishId)),
+          and(
+            eq(celebrations.id, input.celebrationId),
+            eq(celebrations.parishId, ctx.parishId)
+          )
         )
         .limit(1);
       if (!celebration) throw notFound("Celebração");
@@ -520,7 +677,10 @@ export const schedulesRouter = router({
         .select()
         .from(schedules)
         .where(
-          and(eq(schedules.celebrationId, input.celebrationId), eq(schedules.parishId, ctx.parishId)),
+          and(
+            eq(schedules.celebrationId, input.celebrationId),
+            eq(schedules.parishId, ctx.parishId)
+          )
         )
         .limit(1);
 
@@ -532,12 +692,15 @@ export const schedulesRouter = router({
           requirements: celebrationRoleNeeds.requirements,
         })
         .from(celebrationRoleNeeds)
-        .innerJoin(parishRoles, eq(parishRoles.id, celebrationRoleNeeds.parishRoleId))
+        .innerJoin(
+          parishRoles,
+          eq(parishRoles.id, celebrationRoleNeeds.parishRoleId)
+        )
         .where(
           and(
             eq(celebrationRoleNeeds.celebrationId, input.celebrationId),
-            eq(celebrationRoleNeeds.parishId, ctx.parishId),
-          ),
+            eq(celebrationRoleNeeds.parishId, ctx.parishId)
+          )
         )
         .orderBy(asc(parishRoles.displayOrder));
 
@@ -555,13 +718,19 @@ export const schedulesRouter = router({
           replacesAssignmentId: scheduleAssignments.replacesAssignmentId,
         })
         .from(scheduleAssignments)
-        .innerJoin(altarServers, eq(altarServers.id, scheduleAssignments.serverId))
-        .innerJoin(parishRoles, eq(parishRoles.id, scheduleAssignments.parishRoleId))
+        .innerJoin(
+          altarServers,
+          eq(altarServers.id, scheduleAssignments.serverId)
+        )
+        .innerJoin(
+          parishRoles,
+          eq(parishRoles.id, scheduleAssignments.parishRoleId)
+        )
         .where(
           and(
             eq(scheduleAssignments.celebrationId, input.celebrationId),
-            eq(scheduleAssignments.parishId, ctx.parishId),
-          ),
+            eq(scheduleAssignments.parishId, ctx.parishId)
+          )
         )
         .orderBy(asc(parishRoles.displayOrder), asc(altarServers.name));
 
@@ -574,14 +743,14 @@ export const schedulesRouter = router({
       z.object({
         celebrationId: z.number().int().positive(),
         parishRoleId: z.number().int().positive(),
-      }),
+      })
     )
     .query(async ({ ctx, input }) =>
       listEligibleServers({
         parishId: ctx.parishId,
         celebrationId: input.celebrationId,
         parishRoleId: input.parishRoleId,
-      }),
+      })
     ),
 
   /**
@@ -598,12 +767,12 @@ export const schedulesRouter = router({
               serverId: z.number().int().positive(),
               parishRoleId: z.number().int().positive(),
               notes: z.string().trim().max(500).optional().nullable(),
-            }),
+            })
           )
           .max(200),
         /** Permite gravar mesmo com avisos (nunca com bloqueios). */
         acceptWarnings: z.boolean().default(true),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDbOrThrow();
@@ -614,8 +783,8 @@ export const schedulesRouter = router({
         .where(
           and(
             eq(schedules.celebrationId, input.celebrationId),
-            eq(schedules.parishId, ctx.parishId),
-          ),
+            eq(schedules.parishId, ctx.parishId)
+          )
         )
         .limit(1);
       if (!schedule) throw notFound("Escala");
@@ -647,8 +816,8 @@ export const schedulesRouter = router({
           and(
             eq(scheduleAssignments.scheduleId, schedule.id),
             eq(scheduleAssignments.parishId, ctx.parishId),
-            inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"]),
-          ),
+            inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"])
+          )
         );
 
       if (input.assignments.length > 0) {
@@ -662,8 +831,9 @@ export const schedulesRouter = router({
             status: "PENDING" as const,
             assignmentSource: "MANUAL" as const,
             notes: assignment.notes ?? null,
-            assignedByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
-          })),
+            assignedByUserId:
+              ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+          }))
         );
       }
 
@@ -671,7 +841,10 @@ export const schedulesRouter = router({
         action: "SCHEDULE_UPDATED",
         entityType: "schedule",
         entityId: schedule.id,
-        metadata: { total: input.assignments.length, warnings: validation.warnings.length },
+        metadata: {
+          total: input.assignments.length,
+          warnings: validation.warnings.length,
+        },
         ...requestMeta(ctx),
       });
 
@@ -721,8 +894,8 @@ export const schedulesRouter = router({
           and(
             eq(scheduleAssignments.celebrationId, input.celebrationId),
             eq(scheduleAssignments.parishId, ctx.parishId),
-            inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"]),
-          ),
+            inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"])
+          )
         );
 
       return validateAssignments({
@@ -743,7 +916,7 @@ export const schedulesRouter = router({
         celebrationId: z.number().int().positive(),
         status: z.enum(SCHEDULE_STATUS),
         notes: z.string().trim().max(1000).optional().nullable(),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDbOrThrow();
@@ -754,8 +927,8 @@ export const schedulesRouter = router({
         .where(
           and(
             eq(schedules.celebrationId, input.celebrationId),
-            eq(schedules.parishId, ctx.parishId),
-          ),
+            eq(schedules.parishId, ctx.parishId)
+          )
         )
         .limit(1);
       if (!schedule) throw notFound("Escala");
@@ -763,7 +936,7 @@ export const schedulesRouter = router({
       const allowed = ALLOWED_TRANSITIONS[schedule.status];
       if (!allowed.includes(input.status)) {
         throw badRequest(
-          `Não é possível mudar a escala de "${schedule.status}" para "${input.status}".`,
+          `Não é possível mudar a escala de "${schedule.status}" para "${input.status}".`
         );
       }
 
@@ -779,12 +952,14 @@ export const schedulesRouter = router({
             and(
               eq(scheduleAssignments.scheduleId, schedule.id),
               eq(scheduleAssignments.parishId, ctx.parishId),
-              inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"]),
-            ),
+              inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"])
+            )
           );
 
         if (current.length === 0) {
-          throw badRequest("Não é possível publicar uma escala sem servidores atribuídos.");
+          throw badRequest(
+            "Não é possível publicar uma escala sem servidores atribuídos."
+          );
         }
 
         const validation = await validateAssignments({
@@ -804,7 +979,8 @@ export const schedulesRouter = router({
           .set({
             status: "PUBLISHED",
             publishedAt: now,
-            approvedByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+            approvedByUserId:
+              ctx.actor.type === "USER" ? ctx.actor.user.id : null,
             approvedAt: now,
             version: schedule.version + 1,
             notes: input.notes ?? schedule.notes,
@@ -815,7 +991,10 @@ export const schedulesRouter = router({
           action: "SCHEDULE_PUBLISHED",
           entityType: "schedule",
           entityId: schedule.id,
-          metadata: { version: schedule.version + 1, assignments: current.length },
+          metadata: {
+            version: schedule.version + 1,
+            assignments: current.length,
+          },
           ...requestMeta(ctx),
         });
 

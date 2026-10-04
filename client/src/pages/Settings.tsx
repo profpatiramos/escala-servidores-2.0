@@ -64,7 +64,7 @@ export default function Settings() {
   const { session } = useSession();
   const isPlatformAdmin = session?.role === "SUPER_ADMIN";
   const selectedParish =
-    new URLSearchParams(window.location.search).get("paroquia") ?? "";
+    new URLSearchParams(window.location.search).get("paroquia") ?? (() => { try { return sessionStorage.getItem("managed-parish") ?? ""; } catch { return ""; } })();
   const hasParish =
     !!session && (!isPlatformAdmin || /^[1-9]\d*$/.test(selectedParish));
   const parishes = trpc.parishes.list.useQuery(undefined, {

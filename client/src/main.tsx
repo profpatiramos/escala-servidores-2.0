@@ -46,10 +46,9 @@ const trpcClient = trpc.createClient({
         const selected = new URLSearchParams(window.location.search).get(
           "paroquia"
         );
-        const scopeHeaders: Record<string, string> =
-          selected && window.location.pathname === "/configuracoes"
-            ? { "x-platform-parish-id": selected }
-            : {};
+        let scope = selected;
+        try { if(selected) sessionStorage.setItem("managed-parish", selected); scope ??= sessionStorage.getItem("managed-parish"); } catch { /* Storage can be unavailable in private browsing. */ }
+        const scopeHeaders: Record<string, string> = scope ? { "x-platform-parish-id": scope } : {};
         // Preview auto-login fallback: when the browser blocks iframe cookies
         // (Safari ITP / private browsing / WebView), the runtime mirrors the
         // session into sessionStorage so we can forward it as a Bearer token.
