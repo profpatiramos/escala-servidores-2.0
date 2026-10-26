@@ -1,3 +1,4 @@
+import ServerPreferences from "@/components/ServerPreferences";
 /**
  * Detalhe do servidor: dados pastorais, responsáveis vinculados, habilitações e
  * credencial de acesso.
@@ -22,7 +23,13 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -61,10 +68,14 @@ export default function ServerDetail() {
 
   const detail = trpc.people.servers.get.useQuery(
     { id: serverId },
-    { enabled: Number.isFinite(serverId) },
+    { enabled: Number.isFinite(serverId) }
   );
-  const responsiblesList = trpc.people.responsibles.list.useQuery({ includeInactive: false });
-  const rolesList = trpc.availability.roles.list.useQuery({ includeInactive: false });
+  const responsiblesList = trpc.people.responsibles.list.useQuery({
+    includeInactive: false,
+  });
+  const rolesList = trpc.availability.roles.list.useQuery({
+    includeInactive: false,
+  });
 
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkForm, setLinkForm] = useState({
@@ -79,15 +90,23 @@ export default function ServerDetail() {
     qualificationStatus: "QUALIFIED" as QualificationStatus,
   });
   const [formationOpen, setFormationOpen] = useState(false);
-  const [formationForm, setFormationForm] = useState({ name: "", startedAt: "" });
+  const [formationForm, setFormationForm] = useState({
+    name: "",
+    startedAt: "",
+  });
 
-  const invalidate = () => void utils.people.servers.get.invalidate({ id: serverId });
+  const invalidate = () =>
+    void utils.people.servers.get.invalidate({ id: serverId });
 
   const createLink = trpc.people.familyLinks.create.useMutation({
     onSuccess: () => {
       invalidate();
       setLinkOpen(false);
-      setLinkForm({ responsibleId: "", relationshipType: "GUARDIAN", isPrimary: "no" });
+      setLinkForm({
+        responsibleId: "",
+        relationshipType: "GUARDIAN",
+        isPrimary: "no",
+      });
       toast.success("Vínculo criado.");
     },
     onError: error => toast.error(errorMessage(error)),
@@ -143,7 +162,10 @@ export default function ServerDetail() {
       <Card>
         <CardContent className="py-14 text-center">
           <p className="font-medium">Servidor não encontrado</p>
-          <Link href="/servidores" className="mt-2 inline-block text-sm text-primary underline">
+          <Link
+            href="/servidores"
+            className="mt-2 inline-block text-sm text-primary underline"
+          >
             Voltar para servidores
           </Link>
         </CardContent>
@@ -152,10 +174,12 @@ export default function ServerDetail() {
   }
 
   const server = detail.data;
-  const activeLinks = server.responsibles.filter(link => link.status === "ACTIVE");
+  const activeLinks = server.responsibles.filter(
+    link => link.status === "ACTIVE"
+  );
   const minorWithoutGuardian = server.isMinor && activeLinks.length === 0;
   const availableResponsibles = (responsiblesList.data ?? []).filter(
-    candidate => !activeLinks.some(link => link.responsibleId === candidate.id),
+    candidate => !activeLinks.some(link => link.responsibleId === candidate.id)
   );
 
   return (
@@ -170,11 +194,15 @@ export default function ServerDetail() {
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{server.name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {server.name}
+            </h1>
             <p className="text-sm text-muted-foreground">
               {server.age} anos
               {server.isMinor && " · menor de idade"}
-              {server.birthDate ? ` · nasc. ${formatDate(server.birthDate)}` : ""}
+              {server.birthDate
+                ? ` · nasc. ${formatDate(server.birthDate)}`
+                : ""}
             </p>
           </div>
           <Badge variant={server.status === "ACTIVE" ? "default" : "secondary"}>
@@ -188,10 +216,13 @@ export default function ServerDetail() {
           <CardContent className="flex items-start gap-3 py-4">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
             <div className="text-sm">
-              <p className="font-medium text-destructive">Menor sem responsável ativo</p>
+              <p className="font-medium text-destructive">
+                Menor sem responsável ativo
+              </p>
               <p className="text-muted-foreground">
-                Vincule um responsável antes de escalar este servidor. Confirmações e autorizações
-                de menores dependem de alguém responsável no sistema.
+                Vincule um responsável antes de escalar este servidor.
+                Confirmações e autorizações de menores dependem de alguém
+                responsável no sistema.
               </p>
             </div>
           </CardContent>
@@ -204,7 +235,9 @@ export default function ServerDetail() {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <CardTitle className="text-base">Responsáveis</CardTitle>
-                <CardDescription>Quem responde por este servidor.</CardDescription>
+                <CardDescription>
+                  Quem responde por este servidor.
+                </CardDescription>
               </div>
               <Button
                 size="sm"
@@ -244,8 +277,9 @@ export default function ServerDetail() {
                         )}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {RELATIONSHIP_LABELS[link.relationshipType as RelationshipType] ??
-                          link.relationshipType}
+                        {RELATIONSHIP_LABELS[
+                          link.relationshipType as RelationshipType
+                        ] ?? link.relationshipType}
                         {link.phone ? ` · ${link.phone}` : ""}
                       </p>
                     </div>
@@ -280,11 +314,17 @@ export default function ServerDetail() {
               <>
                 <div className="rounded-lg border bg-muted/40 p-3">
                   <p className="text-xs text-muted-foreground">ID de acesso</p>
-                  <p className="font-mono text-sm font-medium">{server.access.accessId}</p>
+                  <p className="font-mono text-sm font-medium">
+                    {server.access.accessId}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <Badge
-                    variant={server.access.status === "ACTIVE" ? "default" : "secondary"}
+                    variant={
+                      server.access.status === "ACTIVE"
+                        ? "default"
+                        : "secondary"
+                    }
                   >
                     {server.access.status === "ACTIVE"
                       ? "ativo"
@@ -293,8 +333,11 @@ export default function ServerDetail() {
                         : server.access.status.toLowerCase()}
                   </Badge>
                   {server.access.lockedUntil &&
-                    new Date(server.access.lockedUntil).getTime() > Date.now() && (
-                      <Badge variant="destructive">bloqueado temporariamente</Badge>
+                    new Date(server.access.lockedUntil).getTime() >
+                      Date.now() && (
+                      <Badge variant="destructive">
+                        bloqueado temporariamente
+                      </Badge>
                     )}
                 </div>
                 <Button
@@ -327,7 +370,9 @@ export default function ServerDetail() {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <CardTitle className="text-base">Habilitações</CardTitle>
-                <CardDescription>Funções que este servidor pode exercer.</CardDescription>
+                <CardDescription>
+                  Funções que este servidor pode exercer.
+                </CardDescription>
               </div>
               <Button
                 size="sm"
@@ -342,8 +387,8 @@ export default function ServerDetail() {
           <CardContent className="p-0">
             {server.qualifications.length === 0 ? (
               <p className="px-6 pb-6 text-sm text-muted-foreground">
-                Nenhuma habilitação registrada. Sem habilitação, o servidor não aparece como
-                elegível na montagem de escalas.
+                Nenhuma habilitação registrada. Sem habilitação, o servidor não
+                aparece como elegível na montagem de escalas.
               </p>
             ) : (
               <div className="divide-y">
@@ -353,7 +398,9 @@ export default function ServerDetail() {
                     className="flex items-center justify-between gap-3 px-6 py-3.5"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{qual.roleName}</p>
+                      <p className="truncate text-sm font-medium">
+                        {qual.roleName}
+                      </p>
                       {qual.minAge !== null && (
                         <p className="text-xs text-muted-foreground">
                           idade mínima da função: {qual.minAge} anos
@@ -369,7 +416,9 @@ export default function ServerDetail() {
                             : "outline"
                       }
                     >
-                      {QUALIFICATION_LABELS[qual.status as QualificationStatus] ?? qual.status}
+                      {QUALIFICATION_LABELS[
+                        qual.status as QualificationStatus
+                      ] ?? qual.status}
                     </Badge>
                   </div>
                 ))}
@@ -409,16 +458,25 @@ export default function ServerDetail() {
                     className="flex items-center justify-between gap-3 px-6 py-3.5"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{formation.name}</p>
+                      <p className="truncate text-sm font-medium">
+                        {formation.name}
+                      </p>
                       {formation.startedAt && (
                         <p className="text-xs text-muted-foreground">
                           início em {formatDate(formation.startedAt)}
                         </p>
                       )}
                     </div>
-                    <Badge variant={formation.status === "COMPLETED" ? "default" : "secondary"}>
-                      {FORMATION_STATUS_LABELS[formation.status as FormationStatus] ??
-                        formation.status}
+                    <Badge
+                      variant={
+                        formation.status === "COMPLETED"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
+                      {FORMATION_STATUS_LABELS[
+                        formation.status as FormationStatus
+                      ] ?? formation.status}
                     </Badge>
                   </div>
                 ))}
@@ -428,12 +486,14 @@ export default function ServerDetail() {
         </Card>
       </div>
 
+      <ServerPreferences key={serverId} serverId={serverId} />
       <Dialog open={qualOpen} onOpenChange={setQualOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Definir habilitação</DialogTitle>
             <DialogDescription>
-              A idade mínima da função é validada contra a data de nascimento do servidor.
+              A idade mínima da função é validada contra a data de nascimento do
+              servidor.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -441,7 +501,9 @@ export default function ServerDetail() {
               <Label>Função</Label>
               <Select
                 value={qualForm.parishRoleId}
-                onValueChange={value => setQualForm({ ...qualForm, parishRoleId: value })}
+                onValueChange={value =>
+                  setQualForm({ ...qualForm, parishRoleId: value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
@@ -466,7 +528,10 @@ export default function ServerDetail() {
               <Select
                 value={qualForm.qualificationStatus}
                 onValueChange={value =>
-                  setQualForm({ ...qualForm, qualificationStatus: value as QualificationStatus })
+                  setQualForm({
+                    ...qualForm,
+                    qualificationStatus: value as QualificationStatus,
+                  })
                 }
               >
                 <SelectTrigger>
@@ -483,7 +548,11 @@ export default function ServerDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="bg-background" onClick={() => setQualOpen(false)}>
+            <Button
+              variant="outline"
+              className="bg-background"
+              onClick={() => setQualOpen(false)}
+            >
               Cancelar
             </Button>
             <Button
@@ -497,7 +566,9 @@ export default function ServerDetail() {
                 })
               }
             >
-              {setQualification.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {setQualification.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
               Salvar
             </Button>
           </DialogFooter>
@@ -518,7 +589,12 @@ export default function ServerDetail() {
               <Input
                 id="formation-name"
                 value={formationForm.name}
-                onChange={event => setFormationForm({ ...formationForm, name: event.target.value })}
+                onChange={event =>
+                  setFormationForm({
+                    ...formationForm,
+                    name: event.target.value,
+                  })
+                }
                 placeholder="Curso de turíbulo"
               />
             </div>
@@ -529,7 +605,10 @@ export default function ServerDetail() {
                 type="date"
                 value={formationForm.startedAt}
                 onChange={event =>
-                  setFormationForm({ ...formationForm, startedAt: event.target.value })
+                  setFormationForm({
+                    ...formationForm,
+                    startedAt: event.target.value,
+                  })
                 }
               />
             </div>
@@ -544,7 +623,10 @@ export default function ServerDetail() {
             </Button>
             <Button
               className="gap-2"
-              disabled={createFormation.isPending || formationForm.name.trim().length < 2}
+              disabled={
+                createFormation.isPending ||
+                formationForm.name.trim().length < 2
+              }
               onClick={() =>
                 createFormation.mutate({
                   serverId,
@@ -554,7 +636,9 @@ export default function ServerDetail() {
                 })
               }
             >
-              {createFormation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {createFormation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
               Registrar
             </Button>
           </DialogFooter>
@@ -566,7 +650,8 @@ export default function ServerDetail() {
           <DialogHeader>
             <DialogTitle>Vincular responsável</DialogTitle>
             <DialogDescription>
-              O vínculo permite que o responsável confirme presenças e autorize participações.
+              O vínculo permite que o responsável confirme presenças e autorize
+              participações.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -574,7 +659,9 @@ export default function ServerDetail() {
               <Label>Responsável</Label>
               <Select
                 value={linkForm.responsibleId}
-                onValueChange={value => setLinkForm({ ...linkForm, responsibleId: value })}
+                onValueChange={value =>
+                  setLinkForm({ ...linkForm, responsibleId: value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
@@ -586,7 +673,10 @@ export default function ServerDetail() {
                     </SelectItem>
                   ) : (
                     availableResponsibles.map(candidate => (
-                      <SelectItem key={candidate.id} value={String(candidate.id)}>
+                      <SelectItem
+                        key={candidate.id}
+                        value={String(candidate.id)}
+                      >
                         {candidate.name}
                       </SelectItem>
                     ))
@@ -608,7 +698,10 @@ export default function ServerDetail() {
               <Select
                 value={linkForm.relationshipType}
                 onValueChange={value =>
-                  setLinkForm({ ...linkForm, relationshipType: value as RelationshipType })
+                  setLinkForm({
+                    ...linkForm,
+                    relationshipType: value as RelationshipType,
+                  })
                 }
               >
                 <SelectTrigger>
@@ -627,20 +720,28 @@ export default function ServerDetail() {
               <Label>Vínculo principal</Label>
               <Select
                 value={linkForm.isPrimary}
-                onValueChange={value => setLinkForm({ ...linkForm, isPrimary: value })}
+                onValueChange={value =>
+                  setLinkForm({ ...linkForm, isPrimary: value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="no">Não</SelectItem>
-                  <SelectItem value="yes">Sim — contato preferencial</SelectItem>
+                  <SelectItem value="yes">
+                    Sim — contato preferencial
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="bg-background" onClick={() => setLinkOpen(false)}>
+            <Button
+              variant="outline"
+              className="bg-background"
+              onClick={() => setLinkOpen(false)}
+            >
               Cancelar
             </Button>
             <Button
@@ -655,24 +756,31 @@ export default function ServerDetail() {
                 })
               }
             >
-              {createLink.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              {createLink.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
               Vincular
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={resetCode !== null} onOpenChange={open => !open && setResetCode(null)}>
+      <Dialog
+        open={resetCode !== null}
+        onOpenChange={open => !open && setResetCode(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Código de redefinição de PIN</DialogTitle>
             <DialogDescription>
-              Entregue este código apenas ao responsável ou ao próprio servidor. Ele vale uma única
-              vez.
+              Entregue este código apenas ao responsável ou ao próprio servidor.
+              Ele vale uma única vez.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border bg-muted/40 p-4 text-center">
-            <p className="font-mono text-2xl font-semibold tracking-widest">{resetCode}</p>
+            <p className="font-mono text-2xl font-semibold tracking-widest">
+              {resetCode}
+            </p>
           </div>
           <DialogFooter>
             <Button onClick={() => setResetCode(null)}>Entendi</Button>

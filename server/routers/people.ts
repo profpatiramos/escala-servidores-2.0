@@ -87,6 +87,12 @@ export const peopleRouter = router({
   // RESPONSÁVEIS
   // =========================================================================
   responsibles: router({
+    dependents: coordinatorProcedure.input(z.object({id:z.number().int().positive()})).query(async({ctx,input})=>{
+      const db=await getDbOrThrow();
+      const [responsible]=await db.select({id:responsibles.id}).from(responsibles).where(and(eq(responsibles.id,input.id),eq(responsibles.parishId,ctx.parishId))).limit(1);
+      if(!responsible)throw notFound("Responsável");
+      return db.select({id:altarServers.id,name:altarServers.name,status:altarServers.status}).from(familyLinks).innerJoin(altarServers,eq(altarServers.id,familyLinks.serverId)).where(and(eq(familyLinks.parishId,ctx.parishId),eq(familyLinks.responsibleId,input.id),eq(familyLinks.status,"ACTIVE"),eq(altarServers.parishId,ctx.parishId))).orderBy(altarServers.name);
+    }),
     enableLogin: coordinatorProcedure
       .input(
         z.object({

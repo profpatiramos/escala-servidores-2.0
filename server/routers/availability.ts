@@ -47,7 +47,9 @@ import {
 } from "../trpc";
 
 const dateSchema = calendarDateSchema;
-const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Horário inválido.");
+const timeSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Horário inválido.");
 
 /** Normaliza o horário para HH:MM:SS, formato aceito pela coluna TIME. */
 function normalizeTime(value: string): string {
@@ -62,19 +64,33 @@ function normalizeTime(value: string): string {
  * - Servidor: apenas o próprio registro.
  */
 export async function assertCanManageServer(
-  ctx: { actor: { type: "USER" | "SERVER"; role: string; responsibleId?: number | null; server?: { id: number } }; parishId: number },
-  serverId: number,
+  ctx: {
+    actor: {
+      type: "USER" | "SERVER";
+      role: string;
+      responsibleId?: number | null;
+      server?: { id: number };
+    };
+    parishId: number;
+  },
+  serverId: number
 ): Promise<void> {
   const db = await getDbOrThrow();
 
   const [server] = await db
     .select({ id: altarServers.id })
     .from(altarServers)
-    .where(and(eq(altarServers.id, serverId), eq(altarServers.parishId, ctx.parishId)))
+    .where(
+      and(
+        eq(altarServers.id, serverId),
+        eq(altarServers.parishId, ctx.parishId)
+      )
+    )
     .limit(1);
   if (!server) throw notFound("Servidor");
 
-  if (["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR"].includes(ctx.actor.role)) return;
+  if (["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR"].includes(ctx.actor.role))
+    return;
 
   if (ctx.actor.role === "SERVER") {
     if (ctx.actor.server?.id !== serverId) {
@@ -85,7 +101,8 @@ export async function assertCanManageServer(
 
   if (ctx.actor.role === "RESPONSIBLE") {
     const responsibleId = ctx.actor.responsibleId;
-    if (!responsibleId) throw forbidden("Cadastro de responsável não localizado.");
+    if (!responsibleId)
+      throw forbidden("Cadastro de responsável não localizado.");
 
     const [link] = await db
       .select({ id: familyLinks.id })
@@ -95,8 +112,8 @@ export async function assertCanManageServer(
           eq(familyLinks.parishId, ctx.parishId),
           eq(familyLinks.responsibleId, responsibleId),
           eq(familyLinks.serverId, serverId),
-          eq(familyLinks.status, "ACTIVE"),
-        ),
+          eq(familyLinks.status, "ACTIVE")
+        )
       )
       .limit(1);
     if (!link) throw forbidden("Este servidor não está vinculado a você.");
@@ -108,12 +125,18 @@ export async function assertCanManageServer(
 
 /** Resolve os IDs de servidores que o ator pode consultar. */
 export async function visibleServerIds(ctx: {
-  actor: { role: string; responsibleId?: number | null; server?: { id: number } };
+  actor: {
+    role: string;
+    responsibleId?: number | null;
+    server?: { id: number };
+  };
   parishId: number;
 }): Promise<number[] | "ALL"> {
-  if (["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR"].includes(ctx.actor.role)) return "ALL";
+  if (["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR"].includes(ctx.actor.role))
+    return "ALL";
 
-  if (ctx.actor.role === "SERVER") return ctx.actor.server ? [ctx.actor.server.id] : [];
+  if (ctx.actor.role === "SERVER")
+    return ctx.actor.server ? [ctx.actor.server.id] : [];
 
   if (ctx.actor.role === "RESPONSIBLE" && ctx.actor.responsibleId) {
     const db = await getDbOrThrow();
@@ -124,8 +147,8 @@ export async function visibleServerIds(ctx: {
         and(
           eq(familyLinks.parishId, ctx.parishId),
           eq(familyLinks.responsibleId, ctx.actor.responsibleId),
-          eq(familyLinks.status, "ACTIVE"),
-        ),
+          eq(familyLinks.status, "ACTIVE")
+        )
       );
     return rows.map(r => r.serverId);
   }
@@ -139,11 +162,16 @@ export const availabilityRouter = router({
   // =========================================================================
   roles: router({
     list: parishProcedure
-      .input(z.object({ includeInactive: z.boolean().default(false) }).default({ includeInactive: false }))
+      .input(
+        z
+          .object({ includeInactive: z.boolean().default(false) })
+          .default({ includeInactive: false })
+      )
       .query(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
         const conditions = [eq(parishRoles.parishId, ctx.parishId)];
-        if (!input.includeInactive) conditions.push(eq(parishRoles.status, "ACTIVE"));
+        if (!input.includeInactive)
+          conditions.push(eq(parishRoles.status, "ACTIVE"));
 
         return db
           .select()
@@ -160,7 +188,7 @@ export const availabilityRouter = router({
           minAge: z.number().int().min(0).max(99).optional().nullable(),
           requiresQualification: z.boolean().default(true),
           displayOrder: z.number().int().min(0).max(999).default(0),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -168,7 +196,12 @@ export const availabilityRouter = router({
         const [duplicate] = await db
           .select({ id: parishRoles.id })
           .from(parishRoles)
-          .where(and(eq(parishRoles.parishId, ctx.parishId), eq(parishRoles.name, input.name)))
+          .where(
+            and(
+              eq(parishRoles.parishId, ctx.parishId),
+              eq(parishRoles.name, input.name)
+            )
+          )
           .limit(1);
         if (duplicate) throw badRequest("Já existe uma função com este nome.");
 
@@ -202,7 +235,7 @@ export const availabilityRouter = router({
           requiresQualification: z.boolean().optional(),
           displayOrder: z.number().int().min(0).max(999).optional(),
           status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -210,7 +243,12 @@ export const availabilityRouter = router({
         const [existing] = await db
           .select()
           .from(parishRoles)
-          .where(and(eq(parishRoles.id, input.id), eq(parishRoles.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(parishRoles.id, input.id),
+              eq(parishRoles.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Função");
 
@@ -218,12 +256,16 @@ export const availabilityRouter = router({
           .update(parishRoles)
           .set({
             ...(input.name !== undefined ? { name: input.name } : {}),
-            ...(input.description !== undefined ? { description: input.description } : {}),
+            ...(input.description !== undefined
+              ? { description: input.description }
+              : {}),
             ...(input.minAge !== undefined ? { minAge: input.minAge } : {}),
             ...(input.requiresQualification !== undefined
               ? { requiresQualification: input.requiresQualification }
               : {}),
-            ...(input.displayOrder !== undefined ? { displayOrder: input.displayOrder } : {}),
+            ...(input.displayOrder !== undefined
+              ? { displayOrder: input.displayOrder }
+              : {}),
             ...(input.status !== undefined ? { status: input.status } : {}),
           })
           .where(eq(parishRoles.id, input.id));
@@ -257,22 +299,36 @@ export const availabilityRouter = router({
           qualifiedAt: dateSchema.optional().nullable(),
           validUntil: dateSchema.optional().nullable(),
           notes: z.string().trim().max(500).optional().nullable(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
 
         const [server] = await db
-          .select({ id: altarServers.id, birthDate: altarServers.birthDate, name: altarServers.name })
+          .select({
+            id: altarServers.id,
+            birthDate: altarServers.birthDate,
+            name: altarServers.name,
+          })
           .from(altarServers)
-          .where(and(eq(altarServers.id, input.serverId), eq(altarServers.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(altarServers.id, input.serverId),
+              eq(altarServers.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!server) throw notFound("Servidor");
 
         const [role] = await db
           .select()
           .from(parishRoles)
-          .where(and(eq(parishRoles.id, input.parishRoleId), eq(parishRoles.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(parishRoles.id, input.parishRoleId),
+              eq(parishRoles.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!role) throw notFound("Função");
 
@@ -282,7 +338,7 @@ export const availabilityRouter = router({
           const age = calculateAge(server.birthDate);
           if (age < role.minAge) {
             throw badRequest(
-              `${server.name} tem ${age} anos e a função ${role.name} exige idade mínima de ${role.minAge} anos.`,
+              `${server.name} tem ${age} anos e a função ${role.name} exige idade mínima de ${role.minAge} anos.`
             );
           }
         }
@@ -293,8 +349,8 @@ export const availabilityRouter = router({
           .where(
             and(
               eq(serverRoles.serverId, input.serverId),
-              eq(serverRoles.parishRoleId, input.parishRoleId),
-            ),
+              eq(serverRoles.parishRoleId, input.parishRoleId)
+            )
           )
           .limit(1);
 
@@ -335,7 +391,12 @@ export const availabilityRouter = router({
       }),
 
     remove: coordinatorProcedure
-      .input(z.object({ serverId: z.number().int().positive(), parishRoleId: z.number().int().positive() }))
+      .input(
+        z.object({
+          serverId: z.number().int().positive(),
+          parishRoleId: z.number().int().positive(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
 
@@ -346,8 +407,8 @@ export const availabilityRouter = router({
             and(
               eq(serverRoles.parishId, ctx.parishId),
               eq(serverRoles.serverId, input.serverId),
-              eq(serverRoles.parishRoleId, input.parishRoleId),
-            ),
+              eq(serverRoles.parishRoleId, input.parishRoleId)
+            )
           )
           .limit(1);
         if (!existing) throw notFound("Habilitação");
@@ -378,7 +439,12 @@ export const availabilityRouter = router({
         return db
           .select()
           .from(formations)
-          .where(and(eq(formations.parishId, ctx.parishId), eq(formations.serverId, input.serverId)))
+          .where(
+            and(
+              eq(formations.parishId, ctx.parishId),
+              eq(formations.serverId, input.serverId)
+            )
+          )
           .orderBy(desc(formations.startedAt));
       }),
 
@@ -392,7 +458,7 @@ export const availabilityRouter = router({
           status: z.enum(FORMATION_STATUS).default("IN_PROGRESS"),
           startedAt: dateSchema.optional().nullable(),
           completedAt: dateSchema.optional().nullable(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -400,12 +466,19 @@ export const availabilityRouter = router({
         const [server] = await db
           .select({ id: altarServers.id })
           .from(altarServers)
-          .where(and(eq(altarServers.id, input.serverId), eq(altarServers.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(altarServers.id, input.serverId),
+              eq(altarServers.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!server) throw notFound("Servidor");
 
         if (input.status === "COMPLETED" && !input.completedAt) {
-          throw badRequest("Informe a data de conclusão para uma formação concluída.");
+          throw badRequest(
+            "Informe a data de conclusão para uma formação concluída."
+          );
         }
 
         await db.insert(formations).values({
@@ -417,7 +490,8 @@ export const availabilityRouter = router({
           status: input.status,
           startedAt: input.startedAt ?? null,
           completedAt: input.completedAt ?? null,
-          registeredByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+          registeredByUserId:
+            ctx.actor.type === "USER" ? ctx.actor.user.id : null,
         });
 
         await recordAudit(ctx.actor, {
@@ -440,7 +514,7 @@ export const availabilityRouter = router({
           status: z.enum(FORMATION_STATUS).optional(),
           startedAt: dateSchema.optional().nullable(),
           completedAt: dateSchema.optional().nullable(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -448,7 +522,12 @@ export const availabilityRouter = router({
         const [existing] = await db
           .select()
           .from(formations)
-          .where(and(eq(formations.id, input.id), eq(formations.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(formations.id, input.id),
+              eq(formations.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Formação");
 
@@ -456,10 +535,16 @@ export const availabilityRouter = router({
           .update(formations)
           .set({
             ...(input.name !== undefined ? { name: input.name } : {}),
-            ...(input.description !== undefined ? { description: input.description } : {}),
+            ...(input.description !== undefined
+              ? { description: input.description }
+              : {}),
             ...(input.status !== undefined ? { status: input.status } : {}),
-            ...(input.startedAt !== undefined ? { startedAt: input.startedAt } : {}),
-            ...(input.completedAt !== undefined ? { completedAt: input.completedAt } : {}),
+            ...(input.startedAt !== undefined
+              ? { startedAt: input.startedAt }
+              : {}),
+            ...(input.completedAt !== undefined
+              ? { completedAt: input.completedAt }
+              : {}),
           })
           .where(eq(formations.id, input.id));
 
@@ -480,18 +565,27 @@ export const availabilityRouter = router({
   recurring: router({
     /** Lista a disponibilidade recorrente visível ao ator. */
     list: parishProcedure
-      .input(z.object({ serverId: z.number().int().positive().optional() }).default({}))
+      .input(
+        z
+          .object({ serverId: z.number().int().positive().optional() })
+          .default({})
+      )
       .query(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
         const allowed = await visibleServerIds(ctx as never);
 
         if (allowed !== "ALL" && allowed.length === 0) return [];
 
-        const conditions = [eq(availabilities.parishId, ctx.parishId), eq(availabilities.status, "ACTIVE")];
+        const conditions = [
+          eq(availabilities.parishId, ctx.parishId),
+          eq(availabilities.status, "ACTIVE"),
+        ];
 
         if (input.serverId) {
           if (allowed !== "ALL" && !allowed.includes(input.serverId)) {
-            throw forbidden("Você não tem acesso à disponibilidade deste servidor.");
+            throw forbidden(
+              "Você não tem acesso à disponibilidade deste servidor."
+            );
           }
           conditions.push(eq(availabilities.serverId, input.serverId));
         } else if (allowed !== "ALL") {
@@ -531,23 +625,33 @@ export const availabilityRouter = router({
           effectiveFrom: dateSchema.optional().nullable(),
           effectiveUntil: dateSchema.optional().nullable(),
           notes: z.string().trim().max(500).optional().nullable(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         await assertCanManageServer(ctx as never, input.serverId);
 
         const startTime = normalizeTime(input.startTime);
         const endTime = normalizeTime(input.endTime);
-        if (startTime >= endTime) throw badRequest("O horário final deve ser depois do inicial.");
+        if (startTime >= endTime)
+          throw badRequest("O horário final deve ser depois do inicial.");
 
-        if (input.effectiveFrom && input.effectiveUntil && input.effectiveFrom > input.effectiveUntil) {
-          throw badRequest("A data final da vigência deve ser depois da inicial.");
+        if (
+          input.effectiveFrom &&
+          input.effectiveUntil &&
+          input.effectiveFrom > input.effectiveUntil
+        ) {
+          throw badRequest(
+            "A data final da vigência deve ser depois da inicial."
+          );
         }
 
         const db = await getDbOrThrow();
 
         const sameScope = await db
-          .select({ startTime: availabilities.startTime, endTime: availabilities.endTime })
+          .select({
+            startTime: availabilities.startTime,
+            endTime: availabilities.endTime,
+          })
           .from(availabilities)
           .where(
             and(
@@ -556,15 +660,17 @@ export const availabilityRouter = router({
               eq(availabilities.scope, input.scope),
               eq(availabilities.weekday, input.weekday),
               eq(availabilities.availabilityType, input.availabilityType),
-              eq(availabilities.status, "ACTIVE"),
-            ),
+              eq(availabilities.status, "ACTIVE")
+            )
           );
 
         const overlapping = sameScope.some(row =>
-          timeRangesOverlap(row.startTime, row.endTime, startTime, endTime),
+          timeRangesOverlap(row.startTime, row.endTime, startTime, endTime)
         );
         if (overlapping) {
-          throw badRequest("Já existe uma janela cadastrada que se sobrepõe a este horário.");
+          throw badRequest(
+            "Já existe uma janela cadastrada que se sobrepõe a este horário."
+          );
         }
 
         await db.insert(availabilities).values({
@@ -586,7 +692,12 @@ export const availabilityRouter = router({
           action: "AVAILABILITY_UPDATED",
           entityType: "availability",
           entityId: input.serverId,
-          metadata: { scope: input.scope, weekday: input.weekday, startTime, endTime },
+          metadata: {
+            scope: input.scope,
+            weekday: input.weekday,
+            startTime,
+            endTime,
+          },
           ...requestMeta(ctx),
         });
 
@@ -602,13 +713,21 @@ export const availabilityRouter = router({
         const [existing] = await db
           .select()
           .from(availabilities)
-          .where(and(eq(availabilities.id, input.id), eq(availabilities.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(availabilities.id, input.id),
+              eq(availabilities.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Disponibilidade");
 
         await assertCanManageServer(ctx as never, existing.serverId);
 
-        await db.update(availabilities).set({ status: "INACTIVE" }).where(eq(availabilities.id, input.id));
+        await db
+          .update(availabilities)
+          .set({ status: "INACTIVE" })
+          .where(eq(availabilities.id, input.id));
 
         await recordAudit(ctx.actor, {
           action: "AVAILABILITY_UPDATED",
@@ -632,7 +751,7 @@ export const availabilityRouter = router({
           serverId: z.number().int().positive().optional(),
           from: dateSchema,
           to: dateSchema,
-        }),
+        })
       )
       .query(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -667,7 +786,10 @@ export const availabilityRouter = router({
             reason: availabilityExceptions.reason,
           })
           .from(availabilityExceptions)
-          .innerJoin(altarServers, eq(altarServers.id, availabilityExceptions.serverId))
+          .innerJoin(
+            altarServers,
+            eq(altarServers.id, availabilityExceptions.serverId)
+          )
           .where(and(...conditions))
           .orderBy(asc(availabilityExceptions.date));
       }),
@@ -682,16 +804,20 @@ export const availabilityRouter = router({
           endTime: timeSchema.optional().nullable(),
           exceptionType: z.enum(EXCEPTION_TYPES).default("UNAVAILABLE"),
           reason: z.string().trim().max(500).optional().nullable(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         await assertCanManageServer(ctx as never, input.serverId);
 
-        const startTime = input.startTime ? normalizeTime(input.startTime) : null;
+        const startTime = input.startTime
+          ? normalizeTime(input.startTime)
+          : null;
         const endTime = input.endTime ? normalizeTime(input.endTime) : null;
 
         if ((startTime && !endTime) || (!startTime && endTime)) {
-          throw badRequest("Informe os dois horários ou nenhum, para indicar o dia inteiro.");
+          throw badRequest(
+            "Informe os dois horários ou nenhum, para indicar o dia inteiro."
+          );
         }
         if (startTime && endTime && startTime >= endTime) {
           throw badRequest("O horário final deve ser depois do inicial.");
@@ -732,14 +858,16 @@ export const availabilityRouter = router({
           .where(
             and(
               eq(availabilityExceptions.id, input.id),
-              eq(availabilityExceptions.parishId, ctx.parishId),
-            ),
+              eq(availabilityExceptions.parishId, ctx.parishId)
+            )
           )
           .limit(1);
         if (!existing) throw notFound("Exceção");
 
         await assertCanManageServer(ctx as never, existing.serverId);
-        await db.delete(availabilityExceptions).where(eq(availabilityExceptions.id, input.id));
+        await db
+          .delete(availabilityExceptions)
+          .where(eq(availabilityExceptions.id, input.id));
 
         await recordAudit(ctx.actor, {
           action: "AVAILABILITY_EXCEPTION_REMOVED",
@@ -758,7 +886,11 @@ export const availabilityRouter = router({
   // =========================================================================
   vacations: router({
     list: parishProcedure
-      .input(z.object({ serverId: z.number().int().positive().optional() }).default({}))
+      .input(
+        z
+          .object({ serverId: z.number().int().positive().optional() })
+          .default({})
+      )
       .query(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
         const allowed = await visibleServerIds(ctx as never);
@@ -797,27 +929,41 @@ export const availabilityRouter = router({
           startDate: dateSchema,
           endDate: dateSchema,
           reason: z.string().trim().max(500).optional().nullable(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         await assertCanManageServer(ctx as never, input.serverId);
 
         if (input.startDate > input.endDate) {
-          throw badRequest("A data de retorno deve ser posterior à data de saída.");
+          throw badRequest(
+            "A data de retorno deve ser posterior à data de saída."
+          );
         }
 
         const db = await getDbOrThrow();
 
         // Rejeita sobreposição com períodos já registrados.
         const existing = await db
-          .select({ startDate: vacations.startDate, endDate: vacations.endDate })
+          .select({
+            startDate: vacations.startDate,
+            endDate: vacations.endDate,
+          })
           .from(vacations)
-          .where(and(eq(vacations.parishId, ctx.parishId), eq(vacations.serverId, input.serverId)));
+          .where(
+            and(
+              eq(vacations.parishId, ctx.parishId),
+              eq(vacations.serverId, input.serverId)
+            )
+          );
 
         const overlaps = existing.some(
-          row => row.startDate <= input.endDate && row.endDate >= input.startDate,
+          row =>
+            row.startDate <= input.endDate && row.endDate >= input.startDate
         );
-        if (overlaps) throw badRequest("Já existe um período de férias que se sobrepõe a este.");
+        if (overlaps)
+          throw badRequest(
+            "Já existe um período de férias que se sobrepõe a este."
+          );
 
         await db.insert(vacations).values({
           parishId: ctx.parishId,
@@ -847,7 +993,12 @@ export const availabilityRouter = router({
         const [existing] = await db
           .select()
           .from(vacations)
-          .where(and(eq(vacations.id, input.id), eq(vacations.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(vacations.id, input.id),
+              eq(vacations.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Período de férias");
 
@@ -858,7 +1009,10 @@ export const availabilityRouter = router({
           action: "VACATION_REMOVED",
           entityType: "vacation",
           entityId: existing.serverId,
-          metadata: { startDate: existing.startDate, endDate: existing.endDate },
+          metadata: {
+            startDate: existing.startDate,
+            endDate: existing.endDate,
+          },
           ...requestMeta(ctx),
         });
 
@@ -886,13 +1040,16 @@ export const availabilityRouter = router({
             priority: schedulePreferences.priority,
           })
           .from(schedulePreferences)
-          .leftJoin(parishRoles, eq(parishRoles.id, schedulePreferences.parishRoleId))
+          .leftJoin(
+            parishRoles,
+            eq(parishRoles.id, schedulePreferences.parishRoleId)
+          )
           .where(
             and(
               eq(schedulePreferences.parishId, ctx.parishId),
               eq(schedulePreferences.serverId, input.serverId),
-              eq(schedulePreferences.status, "ACTIVE"),
-            ),
+              eq(schedulePreferences.status, "ACTIVE")
+            )
           )
           .orderBy(asc(schedulePreferences.priority));
       }),
@@ -912,57 +1069,95 @@ export const availabilityRouter = router({
                 period: z.enum(DAY_PERIODS).optional().nullable(),
                 parishRoleId: z.number().int().positive().optional().nullable(),
                 priority: z.number().int().min(1).max(10).default(1),
-              }),
+              })
             )
             .max(20),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         await assertCanManageServer(ctx as never, input.serverId);
 
-        if (input.preferences.length > 0 && input.preferences.length < SECURITY.minPreferences) {
+        if (
+          input.preferences.length > 0 &&
+          input.preferences.length < SECURITY.minPreferences
+        ) {
           throw badRequest(
-            `Informe pelo menos ${SECURITY.minPreferences} preferências para orientar a montagem da escala.`,
+            `Informe pelo menos ${SECURITY.minPreferences} preferências para orientar a montagem da escala.`
           );
         }
 
         for (const preference of input.preferences) {
           if (
-            preference.weekday === null &&
-            preference.period === null &&
-            preference.parishRoleId === null
+            (preference.weekday ?? null) === null &&
+            (preference.period ?? null) === null &&
+            (preference.parishRoleId ?? null) === null
           ) {
-            throw badRequest("Cada preferência precisa indicar dia, período ou função.");
+            throw badRequest(
+              "Cada preferência precisa indicar dia, período ou função."
+            );
           }
         }
 
         const db = await getDbOrThrow();
 
-        // Preferências antigas são desativadas, não apagadas.
-        await db
-          .update(schedulePreferences)
-          .set({ status: "INACTIVE" })
-          .where(
-            and(
-              eq(schedulePreferences.parishId, ctx.parishId),
-              eq(schedulePreferences.serverId, input.serverId),
-            ),
-          );
-
-        if (input.preferences.length > 0) {
-          await db.insert(schedulePreferences).values(
-            input.preferences.map(preference => ({
-              parishId: ctx.parishId,
-              serverId: input.serverId,
-              weekday: preference.weekday ?? null,
-              period: preference.period ?? null,
-              parishRoleId: preference.parishRoleId ?? null,
-              priority: preference.priority,
-              status: "ACTIVE" as const,
-            })),
-          );
+        const roleIds = [
+          ...new Set(
+            input.preferences.flatMap(p =>
+              p.parishRoleId ? [p.parishRoleId] : []
+            )
+          ),
+        ];
+        if (roleIds.length) {
+          const found = await db
+            .select({ id: parishRoles.id })
+            .from(parishRoles)
+            .where(
+              and(
+                eq(parishRoles.parishId, ctx.parishId),
+                inArray(parishRoles.id, roleIds)
+              )
+            );
+          if (found.length !== roleIds.length)
+            throw badRequest("Função não encontrada nesta paróquia.");
         }
+        if (
+          new Set(
+            input.preferences.map(p =>
+              JSON.stringify([
+                p.weekday ?? null,
+                p.period ?? null,
+                p.parishRoleId ?? null,
+              ])
+            )
+          ).size !== input.preferences.length
+        )
+          throw badRequest("Remova preferências repetidas.");
+        await db.transaction(async tx => {
+          // Preferências antigas são desativadas, não apagadas.
+          await tx
+            .update(schedulePreferences)
+            .set({ status: "INACTIVE" })
+            .where(
+              and(
+                eq(schedulePreferences.parishId, ctx.parishId),
+                eq(schedulePreferences.serverId, input.serverId)
+              )
+            );
 
+          if (input.preferences.length > 0) {
+            await tx.insert(schedulePreferences).values(
+              input.preferences.map(preference => ({
+                parishId: ctx.parishId,
+                serverId: input.serverId,
+                weekday: preference.weekday ?? null,
+                period: preference.period ?? null,
+                parishRoleId: preference.parishRoleId ?? null,
+                priority: preference.priority,
+                status: "ACTIVE" as const,
+              }))
+            );
+          }
+        });
         await recordAudit(ctx.actor, {
           action: "PREFERENCE_UPDATED",
           entityType: "schedule_preference",

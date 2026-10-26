@@ -1,3 +1,6 @@
+import SubstitutionBoard from "@/components/SubstitutionBoard";
+import ExtraParticipation from "@/components/ExtraParticipation";
+import ServerPreferences from "@/components/ServerPreferences";
 /**
  * "Minha escala" — a tela que a criança e o servidor adulto usam.
  *
@@ -5,11 +8,23 @@
  * anos e estar no celular do responsável.
  */
 import { useMemo } from "react";
-import { CalendarCheck, CheckCircle2, Clock, Repeat2, Trophy } from "lucide-react";
+import {
+  CalendarCheck,
+  CheckCircle2,
+  Clock,
+  Repeat2,
+  Trophy,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -31,36 +46,57 @@ export default function MySchedule() {
   const [substitutionFor, setSubstitutionFor] = useState<number | null>(null);
   const [reason, setReason] = useState("");
 
-  const pending = trpc.confirmations.pending.useQuery();
+  const pending = trpc.participation.mine.useQuery(undefined, {
+    refetchInterval: 30000,
+  });
+  const checkIn = trpc.participation.checkIn.useMutation({
+    onSuccess: () => {
+      void utils.participation.mine.invalidate();
+      toast.success("Check-in registrado para conferência da coordenação.");
+    },
+    onError: e => toast.error(errorMessage(e)),
+  });
 
   const balance = trpc.gamification.balance.useQuery(
     { serverId: session?.serverId ?? 0 },
-    { enabled: typeof session?.serverId === "number" && session.serverId > 0 },
+    { enabled: typeof session?.serverId === "number" && session.serverId > 0 }
   );
 
   const respond = trpc.confirmations.respond.useMutation({
     onSuccess: (_data, variables) => {
       void utils.confirmations.pending.invalidate();
+      void utils.participation.mine.invalidate();
+      void utils.participation.board.invalidate();
+      void utils.gamification.balance.invalidate();
       toast.success(
         variables.status === "CONFIRMED"
           ? "Presença confirmada. Obrigado!"
-          : "Avisamos a coordenação que você não poderá ir.",
+          : "Avisamos a coordenação que você não poderá ir."
       );
     },
     onError: error => toast.error(errorMessage(error)),
   });
 
-  const requestSubstitution = trpc.confirmations.substitutions.request.useMutation({
-    onSuccess: () => {
-      setSubstitutionFor(null);
-      setReason("");
-      void utils.confirmations.pending.invalidate();
-      toast.success("Pedido enviado. A coordenação vai buscar alguém para o seu lugar.");
-    },
-    onError: error => toast.error(errorMessage(error)),
-  });
+  const requestSubstitution =
+    trpc.confirmations.substitutions.request.useMutation({
+      onSuccess: () => {
+        setSubstitutionFor(null);
+        setReason("");
+        void utils.confirmations.pending.invalidate();
+        void utils.participation.mine.invalidate();
+        void utils.participation.board.invalidate();
+        void utils.gamification.balance.invalidate();
+        toast.success(
+          "Pedido enviado. A coordenação vai buscar alguém para o seu lugar."
+        );
+      },
+      onError: error => toast.error(errorMessage(error)),
+    });
 
-  const items = useMemo(() => pending.data ?? [], [pending.data]);
+  const items = useMemo(
+    () => (pending.data ?? []).filter(item => item.end >= Date.now()),
+    [pending.data]
+  );
 
   return (
     <div className="space-y-8">
@@ -69,7 +105,8 @@ export default function MySchedule() {
           Olá, {session?.displayName.split(" ")[0]}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Veja onde você foi escalado e confirme se poderá servir.
+          Confirme sua participação, registre sua chegada e acompanhe pedidos de
+          substituição.
         </p>
       </header>
 
@@ -81,7 +118,7 @@ export default function MySchedule() {
             </span>
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Aguardando você
+                Próximos serviços
               </p>
               {pending.isLoading ? (
                 <Skeleton className="mt-1 h-7 w-10" />
@@ -98,11 +135,15 @@ export default function MySchedule() {
               <Trophy className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Meus pontos</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Meus pontos
+              </p>
               {balance.isLoading ? (
                 <Skeleton className="mt-1 h-7 w-14" />
               ) : (
-                <p className="text-2xl font-semibold">{balance.data?.balance ?? 0}</p>
+                <p className="text-2xl font-semibold">
+                  {balance.data?.balance ?? 0}
+                </p>
               )}
             </div>
           </CardContent>
@@ -121,7 +162,9 @@ export default function MySchedule() {
                 <Skeleton className="mt-1 h-7 w-20" />
               ) : (
                 <p className="text-lg font-semibold">
-                  {items[0] ? formatDateLong(items[0].celebrationDate).split(",")[0] : "—"}
+                  {items[0]
+                    ? formatDateLong(items[0].celebrationDate).split(",")[0]
+                    : "—"}
                 </p>
               )}
             </div>
@@ -144,7 +187,7 @@ export default function MySchedule() {
               <CheckCircle2 className="h-9 w-9 text-emerald-600" />
               <p className="font-medium">Você está em dia!</p>
               <p className="max-w-sm text-sm text-muted-foreground">
-                Não há nenhuma confirmação esperando por você agora. Quando a
+                Não há nenhum serviço publicado para você agora. Quando a
                 coordenação publicar uma nova escala, ela aparece aqui.
               </p>
             </CardContent>
@@ -154,44 +197,75 @@ export default function MySchedule() {
             {items.map(item => (
               <Card key={item.assignmentId}>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{item.celebrationTitle}</CardTitle>
+                  <CardTitle className="text-base">
+                    {item.celebrationTitle}
+                  </CardTitle>
                   <CardDescription>
-                    {formatDateLong(item.celebrationDate)} às {formatTime(item.celebrationStartTime)}
-                    {item.location ? ` · ${item.location}` : ""}
+                    {formatDateLong(item.celebrationDate)} às{" "}
+                    {formatTime(item.celebrationStartTime)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-sm">
-                    Sua função: <span className="font-medium">{item.roleName}</span>
+                    Sua função:{" "}
+                    <span className="font-medium">{item.roleName}</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {item.respondedAt
+                      ? item.early
+                        ? "Resposta no prazo de antecedência."
+                        : "Resposta após o prazo de antecedência."
+                      : "Ainda sem confirmação."}{" "}
+                    {item.checkedInAt
+                      ? item.checkinEarly
+                        ? "Check-in antes do início."
+                        : "Check-in após o início."
+                      : "Check-in disponível de 2h antes até o término da celebração."}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       className="h-11 flex-1 sm:flex-none"
                       onClick={() =>
-                        respond.mutate({ assignmentId: item.assignmentId, status: "CONFIRMED" })
+                        respond.mutate({
+                          assignmentId: item.assignmentId,
+                          status: "CONFIRMED",
+                        })
                       }
-                      disabled={respond.isPending}
+                      disabled={
+                        respond.isPending || item.status === "CONFIRMED"
+                      }
                     >
                       <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Vou servir
+                      <span>
+                        {item.status === "CONFIRMED"
+                          ? "Participação confirmada"
+                          : "Confirmar participação"}
+                      </span>
                     </Button>
                     <Button
                       variant="outline"
-                      className="h-11 flex-1 bg-background sm:flex-none"
-                      onClick={() =>
-                        respond.mutate({ assignmentId: item.assignmentId, status: "DECLINED" })
+                      disabled={
+                        checkIn.isPending ||
+                        item.status !== "CONFIRMED" ||
+                        !!item.checkedInAt ||
+                        Date.now() < item.start - 7200000 ||
+                        Date.now() > item.end
                       }
-                      disabled={respond.isPending}
+                      onClick={() =>
+                        checkIn.mutate({ assignmentId: item.assignmentId })
+                      }
                     >
-                      Não vou poder
+                      <span>
+                        {item.checkedInAt
+                          ? "Check-in registrado"
+                          : "Fazer check-in"}
+                      </span>
                     </Button>
                     <Button
                       variant="ghost"
-                      className="h-11"
                       onClick={() => setSubstitutionFor(item.assignmentId)}
                     >
-                      <Repeat2 className="mr-2 h-4 w-4" />
-                      Pedir troca
+                      Preciso de substituto
                     </Button>
                   </div>
                 </CardContent>
@@ -201,6 +275,11 @@ export default function MySchedule() {
         )}
       </section>
 
+      <SubstitutionBoard />
+      <ExtraParticipation />
+      {session?.serverId && (
+        <ServerPreferences key={session.serverId} serverId={session.serverId} />
+      )}
       <Dialog
         open={substitutionFor !== null}
         onOpenChange={open => {
@@ -230,9 +309,14 @@ export default function MySchedule() {
             <Button
               onClick={() => {
                 if (substitutionFor === null) return;
-                requestSubstitution.mutate({ assignmentId: substitutionFor, reason });
+                requestSubstitution.mutate({
+                  assignmentId: substitutionFor,
+                  reason,
+                });
               }}
-              disabled={requestSubstitution.isPending || reason.trim().length < 3}
+              disabled={
+                requestSubstitution.isPending || reason.trim().length < 3
+              }
             >
               Enviar pedido
             </Button>

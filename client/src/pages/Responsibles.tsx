@@ -40,6 +40,7 @@ import {
   type RelationshipType,
 } from "@shared/domain";
 import { Link } from "wouter";
+import ResponsibleDependents from "@/components/ResponsibleDependents";
 
 export default function Responsibles() {
   const utils = trpc.useUtils();
@@ -270,7 +271,7 @@ export default function Responsibles() {
                       <span className="mr-1 text-muted-foreground md:hidden">
                         Dependentes:
                       </span>
-                      {row.dependents}
+                      <ResponsibleDependents id={row.id} name={row.name} count={row.dependents}/>
                     </TableCell>
                     <TableCell>
                       {row.userId ? (

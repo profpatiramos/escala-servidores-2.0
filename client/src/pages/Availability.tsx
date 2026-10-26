@@ -1,18 +1,33 @@
+import ServerPreferences from "@/components/ServerPreferences";
 /**
  * Disponibilidade, férias e preferências.
  *
- * Tudo aqui é restrição obrigatória na geração de escala — não é sugestão. Por
+ * Disponibilidade e férias são restrições; preferências orientam a escolha. Por
  * isso a tela explicita o efeito de cada registro: quem cadastra precisa
  * entender que está removendo o servidor de um horário.
  */
 import { useEffect, useMemo, useState } from "react";
-import { CalendarOff, Clock, Info, Loader2, Plane, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarOff,
+  Clock,
+  Info,
+  Loader2,
+  Plane,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -55,7 +70,7 @@ export default function Availability() {
   // Gestores escolhem o servidor; servidor e responsável já vêm com o escopo resolvido.
   const serversQuery = trpc.people.servers.list.useQuery(
     { includeInactive: false },
-    { enabled: isManager },
+    { enabled: isManager }
   );
   const dependentsQuery = trpc.people.myDependents.useQuery(undefined, {
     enabled: session?.role === "RESPONSIBLE",
@@ -96,23 +111,41 @@ export default function Availability() {
         ? [{ id: session.serverId, name: session.displayName }]
         : [];
     }
-    return (serversQuery.data ?? []).map(server => ({ id: server.id, name: server.name }));
+    return (serversQuery.data ?? []).map(server => ({
+      id: server.id,
+      name: server.name,
+    }));
   }, [session, dependentsQuery.data, serversQuery.data]);
 
   const enabled = selectedServerId !== null && selectedServerId > 0;
   const serverParam = useMemo(
     () => ({ serverId: selectedServerId ?? 0 }),
-    [selectedServerId],
+    [selectedServerId]
   );
 
-  const recurring = trpc.availability.recurring.list.useQuery(serverParam, { enabled });
-  const vacations = trpc.availability.vacations.list.useQuery(serverParam, { enabled });
-  const preferences = trpc.availability.preferences.listByServer.useQuery(serverParam, {
+  const recurring = trpc.availability.recurring.list.useQuery(serverParam, {
     enabled,
   });
+  const vacations = trpc.availability.vacations.list.useQuery(serverParam, {
+    enabled,
+  });
+  const preferences = trpc.availability.preferences.listByServer.useQuery(
+    serverParam,
+    {
+      enabled,
+    }
+  );
 
-  const [windowForm, setWindowForm] = useState({ weekday: "0", startTime: "07:00", endTime: "12:00" });
-  const [vacationForm, setVacationForm] = useState({ startDate: "", endDate: "", reason: "" });
+  const [windowForm, setWindowForm] = useState({
+    weekday: "0",
+    startTime: "07:00",
+    endTime: "12:00",
+  });
+  const [vacationForm, setVacationForm] = useState({
+    startDate: "",
+    endDate: "",
+    reason: "",
+  });
 
   const createWindow = trpc.availability.recurring.create.useMutation({
     onSuccess: () => {
@@ -150,7 +183,9 @@ export default function Availability() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Disponibilidade</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Disponibilidade
+        </h1>
         <p className="text-sm text-muted-foreground">
           Janelas semanais, férias e horários preferidos.
         </p>
@@ -159,8 +194,9 @@ export default function Availability() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Estas informações são respeitadas como restrição obrigatória: o sistema
-          não escala ninguém fora da sua disponibilidade, nem durante as férias.
+          Estas informações são respeitadas como restrição obrigatória: o
+          sistema não escala ninguém fora da sua disponibilidade, nem durante as
+          férias.
         </AlertDescription>
       </Alert>
 
@@ -210,7 +246,8 @@ export default function Availability() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Nova janela semanal</CardTitle>
                 <CardDescription>
-                  Informe o dia da semana e o intervalo em que o servidor pode servir.
+                  Informe o dia da semana e o intervalo em que o servidor pode
+                  servir.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap items-end gap-3">
@@ -218,7 +255,9 @@ export default function Availability() {
                   <Label className="text-xs">Dia</Label>
                   <Select
                     value={windowForm.weekday}
-                    onValueChange={value => setWindowForm({ ...windowForm, weekday: value })}
+                    onValueChange={value =>
+                      setWindowForm({ ...windowForm, weekday: value })
+                    }
                   >
                     <SelectTrigger className="w-40">
                       <SelectValue />
@@ -239,7 +278,10 @@ export default function Availability() {
                     className="w-32"
                     value={windowForm.startTime}
                     onChange={event =>
-                      setWindowForm({ ...windowForm, startTime: event.target.value })
+                      setWindowForm({
+                        ...windowForm,
+                        startTime: event.target.value,
+                      })
                     }
                   />
                 </div>
@@ -249,7 +291,12 @@ export default function Availability() {
                     type="time"
                     className="w-32"
                     value={windowForm.endTime}
-                    onChange={event => setWindowForm({ ...windowForm, endTime: event.target.value })}
+                    onChange={event =>
+                      setWindowForm({
+                        ...windowForm,
+                        endTime: event.target.value,
+                      })
+                    }
                   />
                 </div>
                 <Button
@@ -282,8 +329,8 @@ export default function Availability() {
                   <Clock className="h-7 w-7 text-muted-foreground" />
                   <p className="font-medium">Nenhuma janela cadastrada</p>
                   <p className="max-w-sm text-sm text-muted-foreground">
-                    Sem disponibilidade cadastrada, este servidor não aparece como
-                    elegível na montagem das escalas.
+                    Sem disponibilidade cadastrada, este servidor não aparece
+                    como elegível na montagem das escalas.
                   </p>
                 </CardContent>
               </Card>
@@ -297,12 +344,17 @@ export default function Availability() {
                     >
                       <div>
                         <p className="text-sm font-medium">
-                          {weekdayLabel(item.weekday)} · {item.startTime?.slice(0, 5)} às{" "}
+                          {weekdayLabel(item.weekday)} ·{" "}
+                          {item.startTime?.slice(0, 5)} às{" "}
                           {item.endTime?.slice(0, 5)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {item.availabilityType === "AVAILABLE" ? "Disponível" : "Indisponível"}
-                          {item.scope === "FAMILY" ? " · vale para a família" : ""}
+                          {item.availabilityType === "AVAILABLE"
+                            ? "Disponível"
+                            : "Indisponível"}
+                          {item.scope === "FAMILY"
+                            ? " · vale para a família"
+                            : ""}
                         </p>
                       </div>
                       <Button
@@ -338,7 +390,10 @@ export default function Availability() {
                     className="w-40"
                     value={vacationForm.startDate}
                     onChange={event =>
-                      setVacationForm({ ...vacationForm, startDate: event.target.value })
+                      setVacationForm({
+                        ...vacationForm,
+                        startDate: event.target.value,
+                      })
                     }
                   />
                 </div>
@@ -349,7 +404,10 @@ export default function Availability() {
                     className="w-40"
                     value={vacationForm.endDate}
                     onChange={event =>
-                      setVacationForm({ ...vacationForm, endDate: event.target.value })
+                      setVacationForm({
+                        ...vacationForm,
+                        endDate: event.target.value,
+                      })
                     }
                   />
                 </div>
@@ -359,7 +417,10 @@ export default function Availability() {
                     placeholder="Viagem em família"
                     value={vacationForm.reason}
                     onChange={event =>
-                      setVacationForm({ ...vacationForm, reason: event.target.value })
+                      setVacationForm({
+                        ...vacationForm,
+                        reason: event.target.value,
+                      })
                     }
                   />
                 </div>
@@ -371,7 +432,9 @@ export default function Availability() {
                       startDate: vacationForm.startDate,
                       endDate: vacationForm.endDate,
                       reason:
-                        vacationForm.reason.trim().length > 0 ? vacationForm.reason.trim() : null,
+                        vacationForm.reason.trim().length > 0
+                          ? vacationForm.reason.trim()
+                          : null,
                     })
                   }
                   disabled={
@@ -405,10 +468,13 @@ export default function Availability() {
                     >
                       <div>
                         <p className="text-sm font-medium">
-                          {formatDate(item.startDate)} até {formatDate(item.endDate)}
+                          {formatDate(item.startDate)} até{" "}
+                          {formatDate(item.endDate)}
                         </p>
                         {item.reason && (
-                          <p className="text-xs text-muted-foreground">{item.reason}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.reason}
+                          </p>
                         )}
                       </div>
                       <Button
@@ -428,44 +494,12 @@ export default function Availability() {
             )}
           </TabsContent>
 
-          <TabsContent value="preferences" className="space-y-4 pt-4">
-            {preferences.isLoading ? (
-              <Skeleton className="h-32 w-full" />
-            ) : (preferences.data ?? []).length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
-                  <CalendarOff className="h-7 w-7 text-muted-foreground" />
-                  <p className="font-medium">Nenhuma preferência informada</p>
-                  <p className="max-w-sm text-sm text-muted-foreground">
-                    Preferências não impedem a escala, mas orientam a ordem de
-                    escolha quando há mais de um servidor apto.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="divide-y p-0">
-                  {(preferences.data ?? []).map(item => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-3 px-5 py-3.5"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">
-                          {item.weekday === null ? "Qualquer dia" : weekdayLabel(item.weekday)}
-                          {item.period ? ` · ${PERIOD_LABELS[item.period]}` : ""}
-                        </p>
-                        {item.roleName && (
-                          <p className="text-xs text-muted-foreground">
-                            Função preferida: {item.roleName}
-                          </p>
-                        )}
-                      </div>
-                      <Badge variant="secondary">prioridade {item.priority}</Badge>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+          <TabsContent value="preferences" className="pt-4">
+            {selectedServerId && (
+              <ServerPreferences
+                key={selectedServerId}
+                serverId={selectedServerId}
+              />
             )}
           </TabsContent>
         </Tabs>

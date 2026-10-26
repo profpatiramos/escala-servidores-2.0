@@ -15,6 +15,7 @@ import { availabilityRouter } from "./routers/availability";
 import { schedulesRouter } from "./routers/schedules";
 import { monthlyScheduleRouter } from "./routers/monthlySchedule";
 import { confirmationsRouter } from "./routers/confirmations";
+import { participationRouter } from "./routers/participation";
 import { eventsRouter } from "./routers/events";
 import { gamificationRouter } from "./routers/gamification";
 import { aiRouter } from "./routers/ai";
@@ -57,6 +58,7 @@ export const appRouter = router({
 
   /** Confirmações, conflitos, substituições e presença. */
   confirmations: confirmationsRouter,
+  participation: participationRouter,
 
   /** Eventos, tarefas, turnos e voluntariado. */
   events: eventsRouter,

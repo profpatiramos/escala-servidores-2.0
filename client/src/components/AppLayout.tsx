@@ -47,6 +47,12 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   {
+    label: "Participações e check-in",
+    href: "/participacoes",
+    icon: CalendarCheck,
+    roles: ["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR"],
+  },
+  {
     label: "Escala mensal",
     href: "/escala-mensal",
     icon: CalendarDays,
@@ -242,6 +248,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             {
               label: "Escalas e agenda",
               paths: [
+                "/participacoes",
                 "/escala-mensal",
                 "/celebracoes",
                 "/disponibilidade",
