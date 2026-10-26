@@ -35,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduleStatusBadge } from "@/pages/Dashboard";
 import { errorMessage, formatDateLong, formatTime } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
+import CelebrationNeeds from "@/components/CelebrationNeeds";
 
 type DraftAssignment = {
   serverId: number;
@@ -162,6 +163,8 @@ export default function CelebrationDetail() {
           </div>
         </div>
       </div>
+
+      <CelebrationNeeds celebrationId={celebrationId} needs={needs} assignedRoleIds={current.map(a => a.parishRoleId)} />
 
       {isPublished && (
         <Alert>
