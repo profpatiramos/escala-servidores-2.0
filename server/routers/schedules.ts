@@ -220,49 +220,52 @@ export const schedulesRouter = router({
           }
         }
 
-        await db.insert(celebrations).values({
-          parishId: ctx.parishId,
-          title: input.title,
-          celebrationType: input.celebrationType,
-          date: input.date,
-          startTime,
-          endTime,
-          location: input.location ?? null,
-          notes: input.notes ?? null,
-          status: "SCHEDULED",
-          createdByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
-        });
-
-        const [created] = await db
-          .select({ id: celebrations.id })
-          .from(celebrations)
-          .where(eq(celebrations.parishId, ctx.parishId))
-          .orderBy(desc(celebrations.id))
-          .limit(1);
-        if (!created) throw badRequest("Não foi possível criar a celebração.");
-
-        if (input.needs.length > 0) {
-          await db.insert(celebrationRoleNeeds).values(
-            input.needs.map(need => ({
+        const created = await db.transaction(async tx => {
+          const [created] = await tx
+            .insert(celebrations)
+            .values({
               parishId: ctx.parishId,
-              celebrationId: created.id,
-              parishRoleId: need.parishRoleId,
-              quantity: need.quantity,
-              requirements: need.requirements ?? null,
-            }))
-          );
-        }
+              title: input.title,
+              celebrationType: input.celebrationType,
+              date: input.date,
+              startTime,
+              endTime,
+              location: input.location ?? null,
+              notes: input.notes ?? null,
+              status: "SCHEDULED",
+              createdByUserId:
+                ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+            })
+            .returning({ id: celebrations.id });
 
-        // A escala nasce como rascunho junto com a celebração.
-        await db.insert(schedules).values({
-          parishId: ctx.parishId,
-          celebrationId: created.id,
-          periodStart: input.date,
-          periodEnd: input.date,
-          status: "DRAFT",
-          source: "MANUAL",
-          generatedByUserId:
-            ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+          if (!created)
+            throw badRequest("Não foi possível criar a celebração.");
+
+          if (input.needs.length > 0) {
+            await tx.insert(celebrationRoleNeeds).values(
+              input.needs.map(need => ({
+                parishId: ctx.parishId,
+                celebrationId: created.id,
+                parishRoleId: need.parishRoleId,
+                quantity: need.quantity,
+                requirements: need.requirements ?? null,
+              }))
+            );
+          }
+
+          // A escala nasce como rascunho junto com a celebração.
+          await tx.insert(schedules).values({
+            parishId: ctx.parishId,
+            celebrationId: created.id,
+            periodStart: input.date,
+            periodEnd: input.date,
+            status: "DRAFT",
+            source: "MANUAL",
+            generatedByUserId:
+              ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+          });
+
+          return created;
         });
 
         await recordAudit(ctx.actor, {
@@ -329,29 +332,25 @@ export const schedulesRouter = router({
               )
             );
           if (needs.length)
-            await tx
-              .insert(celebrationRoleNeeds)
-              .values(
-                needs.map(need => ({
-                  parishId: ctx.parishId,
-                  celebrationId: copy.id,
-                  parishRoleId: need.parishRoleId,
-                  quantity: need.quantity,
-                  requirements: need.requirements,
-                }))
-              );
-          await tx
-            .insert(schedules)
-            .values({
-              parishId: ctx.parishId,
-              celebrationId: copy.id,
-              periodStart: input.date,
-              periodEnd: input.date,
-              status: "DRAFT",
-              source: "MANUAL",
-              generatedByUserId:
-                ctx.actor.type === "USER" ? ctx.actor.user.id : null,
-            });
+            await tx.insert(celebrationRoleNeeds).values(
+              needs.map(need => ({
+                parishId: ctx.parishId,
+                celebrationId: copy.id,
+                parishRoleId: need.parishRoleId,
+                quantity: need.quantity,
+                requirements: need.requirements,
+              }))
+            );
+          await tx.insert(schedules).values({
+            parishId: ctx.parishId,
+            celebrationId: copy.id,
+            periodStart: input.date,
+            periodEnd: input.date,
+            status: "DRAFT",
+            source: "MANUAL",
+            generatedByUserId:
+              ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+          });
           return copy;
         });
         await recordAudit(ctx.actor, {

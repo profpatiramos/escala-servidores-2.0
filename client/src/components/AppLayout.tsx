@@ -47,6 +47,12 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   {
+    label: "Escala mensal",
+    href: "/escala-mensal",
+    icon: CalendarDays,
+    roles: ["SUPER_ADMIN", "PARISH_ADMIN", "COORDINATOR"],
+  },
+  {
     label: "Paróquias",
     href: "/admin",
     icon: Building2,
@@ -164,8 +170,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { session } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const utils = trpc.useUtils();
-  const hasManagedParish = (() => { try { return !!sessionStorage.getItem("managed-parish") || !!new URLSearchParams(window.location.search).get("paroquia"); } catch { return false; } })();
-  const managedParish = trpc.parishes.current.useQuery(undefined, { enabled: session?.role === "SUPER_ADMIN" && hasManagedParish });
+  const hasManagedParish = (() => {
+    try {
+      return (
+        !!sessionStorage.getItem("managed-parish") ||
+        !!new URLSearchParams(window.location.search).get("paroquia")
+      );
+    } catch {
+      return false;
+    }
+  })();
+  const managedParish = trpc.parishes.current.useQuery(undefined, {
+    enabled: session?.role === "SUPER_ADMIN" && hasManagedParish,
+  });
 
   const unread = trpc.notifications.unreadCount.useQuery(undefined, {
     enabled: session !== null,
@@ -174,7 +191,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const logout = trpc.access.logout.useMutation({
     onSuccess: () => {
-      try { sessionStorage.removeItem("managed-parish"); } catch { /* Storage unavailable. */ }
+      try {
+        sessionStorage.removeItem("managed-parish");
+      } catch {
+        /* Storage unavailable. */
+      }
       void utils.invalidate();
       window.location.href = "/";
     },
@@ -316,7 +337,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">
-              {session.parishName ?? managedParish.data?.name ?? "Administração da plataforma"}
+              {session.parishName ??
+                managedParish.data?.name ??
+                "Administração da plataforma"}
             </p>
             <p className="truncate text-xs text-muted-foreground">
               {ROLE_LABELS[session.role]}

@@ -13,6 +13,7 @@ import { peopleRouter } from "./routers/people";
 import { peopleImportRouter } from "./routers/peopleImport";
 import { availabilityRouter } from "./routers/availability";
 import { schedulesRouter } from "./routers/schedules";
+import { monthlyScheduleRouter } from "./routers/monthlySchedule";
 import { confirmationsRouter } from "./routers/confirmations";
 import { eventsRouter } from "./routers/events";
 import { gamificationRouter } from "./routers/gamification";
@@ -52,6 +53,7 @@ export const appRouter = router({
 
   /** Celebrações, escalas e fluxo de publicação. */
   schedules: schedulesRouter,
+  monthlySchedule: monthlyScheduleRouter,
 
   /** Confirmações, conflitos, substituições e presença. */
   confirmations: confirmationsRouter,

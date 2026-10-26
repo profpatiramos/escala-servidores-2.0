@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import PlatformAdmin from "./pages/PlatformAdmin";
 import MySchedule from "./pages/MySchedule";
 import Celebrations from "./pages/Celebrations";
+import MonthlySchedule from "./pages/MonthlySchedule";
 import CelebrationDetail from "./pages/CelebrationDetail";
 import Servers from "./pages/Servers";
 import Availability from "./pages/Availability";
@@ -103,6 +104,11 @@ function Router() {
       <Route path="/celebracoes">
         <Protected>
           <Celebrations />
+        </Protected>
+      </Route>
+      <Route path="/escala-mensal">
+        <Protected>
+          <MonthlySchedule />
         </Protected>
       </Route>
       <Route path="/celebracoes/:id">
