@@ -232,7 +232,7 @@ export default function Login() {
                         {passwordLogin.isPending && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        Entrar
+                        <span>Entrar</span>
                       </Button>
                       <button
                         type="button"
@@ -294,7 +294,7 @@ export default function Login() {
                         {accessLogin.isPending && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        Entrar
+                        <span>Entrar</span>
                       </Button>
                       <p className="text-xs text-muted-foreground">
                         Não sabe seu ID ou esqueceu o PIN? Fale com a
