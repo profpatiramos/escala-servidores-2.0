@@ -87,12 +87,16 @@ export default function CelebrationDetail() {
   });
 
   const setStatus = trpc.schedules.setStatus.useMutation({
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       void utils.schedules.invalidate();
+      if (variables.status === "PUBLISHED" && !data.published) {
+        toast.error("Há impedimentos que precisam ser resolvidos antes de publicar.");
+        return;
+      }
       toast.success(
         variables.status === "PUBLISHED"
           ? "Escala publicada. Os servidores e responsáveis foram avisados."
-          : "Situação da escala atualizada.",
+          : "Escala proposta. Revise a equipe e publique quando estiver pronta.",
       );
     },
     onError: error => toast.error(errorMessage(error)),
@@ -321,19 +325,21 @@ export default function CelebrationDetail() {
           Salvar escala
         </Button>
 
-        {!isPublished && (
+        {schedule && ["DRAFT", "PROPOSED", "UNDER_REVIEW"].includes(schedule.status) && (
           <Button
             variant="default"
             className="gap-2"
-            onClick={() => setStatus.mutate({ celebrationId, status: "PUBLISHED" })}
+            onClick={() => setStatus.mutate({ celebrationId, status: schedule.status === "DRAFT" ? "PROPOSED" : "PUBLISHED" })}
             disabled={
               setStatus.isPending ||
               hasDraftChanges ||
+              current.length === 0 ||
+              needs.length === 0 ||
               (validation.data?.blocking.length ?? 0) > 0
             }
           >
             <Send className="h-4 w-4" />
-            Publicar escala
+            {schedule.status === "DRAFT" ? "Propor escala" : "Publicar escala"}
           </Button>
         )}
 
