@@ -230,25 +230,70 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="space-y-1">
-          {items.map(item => {
-            const active =
-              location === item.href || location.startsWith(`${item.href}/`);
-            const Icon = item.icon;
+          {[
+            {
+              label: "Visão geral",
+              paths: ["/painel", "/minha-escala", "/notificacoes"],
+            },
+            {
+              label: "Pessoas e formação",
+              paths: ["/servidores", "/responsaveis", "/funcoes"],
+            },
+            {
+              label: "Escalas e agenda",
+              paths: [
+                "/escala-mensal",
+                "/celebracoes",
+                "/disponibilidade",
+                "/eventos",
+                "/assistente",
+              ],
+            },
+            {
+              label: "Acompanhamento",
+              paths: ["/reconhecimento", "/relatorios"],
+            },
+            { label: "Administração", paths: ["/admin", "/configuracoes"] },
+          ].map(group => {
+            const groupItems = group.paths.flatMap(path =>
+              items.filter(item => item.href === path)
+            );
+            if (!groupItems.length) return null;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150",
-                  active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
+              <section
+                key={group.label}
+                className="mb-6 last:mb-0"
+                aria-label={group.label}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </Link>
+                <h2 className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  {group.label}
+                </h2>
+                <div className="space-y-1">
+                  {groupItems.map(item => {
+                    const active =
+                      location === item.href ||
+                      location.startsWith(item.href + "/");
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => setMobileOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
+                          active
+                            ? "border-primary/15 bg-primary/10 text-primary"
+                            : "border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
             );
           })}
         </nav>
@@ -295,9 +340,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-background">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:p-3 focus:text-primary-foreground"
+      >
+        Pular para o conteúdo
+      </a>
       {/* Sidebar fixa no desktop. */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-card lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r bg-card lg:block">
         {navContent}
       </aside>
 
@@ -323,7 +374,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="lg:pl-64">
+      <div className="lg:pl-72">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-card/95 px-4 backdrop-blur sm:px-6">
           <Button
             variant="ghost"
@@ -363,7 +414,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </Link>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main
+          id="main-content"
+          className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8"
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

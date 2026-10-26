@@ -48,6 +48,7 @@ import {
 import { getDbOrThrow } from "../db";
 import { recordAudit } from "../services/audit";
 import { issueAccessCode } from "../services/accessCodes";
+import { enableResponsibleLogin } from "../services/responsibleLogin";
 import {
   badRequest,
   coordinatorProcedure,
@@ -86,6 +87,30 @@ export const peopleRouter = router({
   // RESPONSÁVEIS
   // =========================================================================
   responsibles: router({
+    enableLogin: coordinatorProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          email: z.string().trim().email("E-mail inválido.").max(320),
+          temporaryPassword: z.string().max(128),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const result = await enableResponsibleLogin({
+          parishId: ctx.parishId,
+          responsibleId: input.id,
+          email: input.email,
+          temporaryPassword: input.temporaryPassword,
+        });
+        await recordAudit(ctx.actor, {
+          action: "RESPONSIBLE_UPDATED",
+          entityType: "responsible",
+          entityId: input.id,
+          metadata: { loginEnabled: true },
+          ...requestMeta(ctx),
+        });
+        return result;
+      }),
     /** Lista os responsáveis da paróquia com a contagem de dependentes ativos. */
     list: coordinatorProcedure
       .input(

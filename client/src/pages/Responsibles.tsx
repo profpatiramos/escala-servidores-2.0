@@ -6,7 +6,7 @@
  * funcionar para contato e vínculo mesmo sem login.
  */
 import { useState } from "react";
-import { Loader2, Search, UserPlus, Users } from "lucide-react";
+import { Loader2, Search, UserPlus, Users, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +48,27 @@ export default function Responsibles() {
     includeInactive: false,
   });
   const [open, setOpen] = useState(false);
+  const [loginTarget, setLoginTarget] = useState<{
+    id: number;
+    name: string;
+    email: string;
+  } | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginConfirmation, setLoginConfirmation] = useState("");
+  const enableLogin = trpc.people.responsibles.enableLogin.useMutation({
+    onSuccess: () => {
+      void utils.people.responsibles.list.invalidate();
+      setLoginTarget(null);
+      setLoginEmail("");
+      setLoginPassword("");
+      setLoginConfirmation("");
+      toast.success(
+        "Login habilitado. O responsável deve trocar a senha provisória no primeiro acesso."
+      );
+    },
+    onError: error => toast.error(errorMessage(error)),
+  });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [initialServer, setInitialServer] = useState("");
   const [initialRelationship, setInitialRelationship] =
@@ -127,7 +148,7 @@ export default function Responsibles() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      <header className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border bg-gradient-to-br from-primary/5 via-card to-card p-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
             Responsáveis
@@ -158,6 +179,31 @@ export default function Responsibles() {
         </Button>
       </header>
 
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Responsáveis", value: list.data?.length ?? 0 },
+          {
+            label: "Com acesso",
+            value: list.data?.filter(r => r.userId).length ?? 0,
+          },
+          {
+            label: "Sem acesso",
+            value: list.data?.filter(r => !r.userId).length ?? 0,
+          },
+        ].map(stat => (
+          <Card key={stat.label}>
+            <CardContent className="p-4">
+              <p className="text-2xl font-semibold tabular-nums">
+                {list.isLoading ? "—" : stat.value}
+              </p>
+              <p className="text-xs text-muted-foreground sm:text-sm">
+                {stat.label}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -170,11 +216,24 @@ export default function Responsibles() {
 
       {list.isLoading ? (
         <Skeleton className="h-40 w-full" />
+      ) : list.isError ? (
+        <Card>
+          <CardContent className="space-y-3 p-6" role="alert">
+            <p>Não foi possível carregar os responsáveis.</p>
+            <Button variant="outline" onClick={() => void list.refetch()}>
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
       ) : rows.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
             <Users className="h-8 w-8 text-muted-foreground" />
-            <p className="font-medium">Nenhum responsável cadastrado</p>
+            <p className="font-medium">
+              {search.trim()
+                ? "Nenhum responsável encontrado"
+                : "Nenhum responsável cadastrado"}
+            </p>
             <p className="max-w-sm text-sm text-muted-foreground">
               Cadastre os responsáveis para poder vinculá-los aos servidores
               menores de idade.
@@ -185,7 +244,7 @@ export default function Responsibles() {
         <Card>
           <CardContent className="p-0">
             <Table>
-              <TableHeader>
+              <TableHeader className="hidden md:table-header-group">
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Contato</TableHead>
@@ -194,14 +253,25 @@ export default function Responsibles() {
                   <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className="block md:table-row-group">
                 {rows.map(row => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {row.phone ?? row.email ?? "—"}
+                  <TableRow
+                    key={row.id}
+                    className="grid grid-cols-2 items-start gap-2 p-4 md:table-row md:p-0"
+                  >
+                    <TableCell className="col-span-2 font-medium md:w-[22%]">
+                      {row.name}
                     </TableCell>
-                    <TableCell>{row.dependents}</TableCell>
+                    <TableCell className="col-span-2 text-sm text-muted-foreground md:w-[25%]">
+                      <p>{row.phone || "Sem telefone"}</p>
+                      <p className="break-all">{row.email || "Sem e-mail"}</p>
+                    </TableCell>
+                    <TableCell>
+                      <span className="mr-1 text-muted-foreground md:hidden">
+                        Dependentes:
+                      </span>
+                      {row.dependents}
+                    </TableCell>
                     <TableCell>
                       {row.userId ? (
                         <Badge variant="default">com login</Badge>
@@ -209,7 +279,28 @@ export default function Responsibles() {
                         <Badge variant="outline">sem login</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="space-x-2">
+                    <TableCell className="col-span-2 space-x-2 space-y-2 md:space-y-0">
+                      {!row.userId && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => {
+                            setLoginTarget({
+                              id: row.id,
+                              name: row.name,
+                              email: row.email ?? "",
+                            });
+                            setLoginEmail(row.email ?? "");
+                            setLoginPassword("");
+                            setLoginConfirmation("");
+                          }}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                          Habilitar login
+                          <span className="sr-only"> de {row.name}</span>
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -248,6 +339,124 @@ export default function Responsibles() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog
+        open={loginTarget !== null}
+        onOpenChange={value => {
+          if (!value && !enableLogin.isPending) {
+            setLoginTarget(null);
+            setLoginPassword("");
+            setLoginConfirmation("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Habilitar login do responsável</DialogTitle>
+            <DialogDescription>
+              {loginTarget?.name} continuará com o mesmo cadastro e os mesmos
+              dependentes.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={event => {
+              event.preventDefault();
+              if (loginTarget && loginPassword === loginConfirmation)
+                enableLogin.mutate({
+                  id: loginTarget.id,
+                  email: loginEmail.trim(),
+                  temporaryPassword: loginPassword,
+                });
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="enable-email">E-mail de acesso</Label>
+              <Input
+                id="enable-email"
+                type="email"
+                autoComplete="off"
+                value={loginEmail}
+                onChange={e => setLoginEmail(e.target.value)}
+                required
+                maxLength={320}
+                disabled={enableLogin.isPending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="enable-password">Senha provisória</Label>
+              <Input
+                id="enable-password"
+                type="password"
+                autoComplete="new-password"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                required
+                minLength={8}
+                maxLength={128}
+                disabled={enableLogin.isPending}
+              />
+              <p className="text-xs text-muted-foreground">
+                Pelo menos 8 caracteres, com letras e números.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="enable-confirm">Confirmar senha provisória</Label>
+              <Input
+                id="enable-confirm"
+                type="password"
+                autoComplete="new-password"
+                value={loginConfirmation}
+                onChange={e => setLoginConfirmation(e.target.value)}
+                required
+                disabled={enableLogin.isPending}
+              />
+              {loginConfirmation && loginConfirmation !== loginPassword && (
+                <p role="alert" className="text-sm text-destructive">
+                  As senhas precisam ser iguais.
+                </p>
+              )}
+            </div>
+            <p className="rounded-lg bg-muted p-3 text-sm">
+              Entregue os dados ao responsável. Ele entra com e-mail e senha em
+              /acesso e troca a senha no primeiro login. Esta ação não envia
+              e-mail automaticamente.
+            </p>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={enableLogin.isPending}
+                onClick={() => {
+                  setLoginTarget(null);
+                  setLoginPassword("");
+                  setLoginConfirmation("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={
+                  enableLogin.isPending ||
+                  !loginEmail.trim() ||
+                  loginPassword.length < 8 ||
+                  !/[a-zA-Z]/.test(loginPassword) ||
+                  !/[0-9]/.test(loginPassword) ||
+                  loginPassword !== loginConfirmation
+                }
+              >
+                {enableLogin.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <KeyRound className="mr-2 h-4 w-4" />
+                )}
+                <span>Habilitar acesso</span>
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={selected !== null}
