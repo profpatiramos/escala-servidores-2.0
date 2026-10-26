@@ -31,13 +31,26 @@ import {
 } from "../../drizzle/schema";
 import { getDb, getDbOrThrow } from "../db";
 import { calculateAge, type PointEventType } from "@shared/domain";
+import { DEFAULT_ACHIEVEMENTS } from "@shared/domain";
+import { evaluateApprovedAchievements } from "./approvedAchievements";
 
 /** Eventos que subtraem pontos. Só são aplicados se a paróquia habilitar penalidades. */
-const PENALTY_EVENTS: PointEventType[] = ["JUSTIFIED_ABSENCE", "UNJUSTIFIED_ABSENCE"];
+const PENALTY_EVENTS: PointEventType[] = [
+  "JUSTIFIED_ABSENCE",
+  "UNJUSTIFIED_ABSENCE",
+];
 
 export type GrantResult =
   | { granted: true; transactionId: number; points: number }
-  | { granted: false; reason: "DISABLED" | "RULE_DISABLED" | "PENALTIES_DISABLED" | "DUPLICATE" | "ERROR" };
+  | {
+      granted: false;
+      reason:
+        | "DISABLED"
+        | "RULE_DISABLED"
+        | "PENALTIES_DISABLED"
+        | "DUPLICATE"
+        | "ERROR";
+    };
 
 /**
  * Concede pontos a um servidor conforme a regra configurada na paróquia.
@@ -64,10 +77,14 @@ export async function grantPoints(params: {
       .where(eq(gamificationSettings.parishId, params.parishId))
       .limit(1);
 
-    if (!settings || !settings.enabled) return { granted: false, reason: "DISABLED" };
+    if (!settings || !settings.enabled)
+      return { granted: false, reason: "DISABLED" };
 
     // Penalidades exigem opt-in explícito da paróquia.
-    if (PENALTY_EVENTS.includes(params.eventType) && !settings.penaltiesEnabled) {
+    if (
+      PENALTY_EVENTS.includes(params.eventType) &&
+      !settings.penaltiesEnabled
+    ) {
       return { granted: false, reason: "PENALTIES_DISABLED" };
     }
 
@@ -77,12 +94,13 @@ export async function grantPoints(params: {
       .where(
         and(
           eq(pointRules.parishId, params.parishId),
-          eq(pointRules.eventType, params.eventType),
-        ),
+          eq(pointRules.eventType, params.eventType)
+        )
       )
       .limit(1);
 
-    if (!rule || !rule.enabled) return { granted: false, reason: "RULE_DISABLED" };
+    if (!rule || !rule.enabled)
+      return { granted: false, reason: "RULE_DISABLED" };
     if (rule.points === 0) return { granted: false, reason: "RULE_DISABLED" };
 
     const idempotencyKey = buildIdempotencyKey({
@@ -101,8 +119,8 @@ export async function grantPoints(params: {
       .where(
         and(
           eq(pointTransactions.idempotencyKey, idempotencyKey),
-          eq(pointTransactions.parishId, params.parishId),
-        ),
+          eq(pointTransactions.parishId, params.parishId)
+        )
       )
       .limit(1);
 
@@ -126,8 +144,8 @@ export async function grantPoints(params: {
       .where(
         and(
           eq(pointTransactions.idempotencyKey, idempotencyKey),
-          eq(pointTransactions.parishId, params.parishId),
-        ),
+          eq(pointTransactions.parishId, params.parishId)
+        )
       )
       .limit(1);
 
@@ -137,9 +155,17 @@ export async function grantPoints(params: {
       serverId: params.serverId,
     });
 
-    return { granted: true, transactionId: created?.id ?? 0, points: rule.points };
+    return {
+      granted: true,
+      transactionId: created?.id ?? 0,
+      points: rule.points,
+    };
   } catch (error) {
-    console.error("[Gamificação] Falha ao conceder pontos:", params.eventType, error);
+    console.error(
+      "[Gamificação] Falha ao conceder pontos:",
+      params.eventType,
+      error
+    );
     return { granted: false, reason: "ERROR" };
   }
 }
@@ -173,13 +199,15 @@ export async function getServerBalance(params: {
   if (!db) return 0;
 
   const [row] = await db
-    .select({ total: sql<number>`COALESCE(SUM(${pointTransactions.pointsDelta}), 0)` })
+    .select({
+      total: sql<number>`COALESCE(SUM(${pointTransactions.pointsDelta}), 0)`,
+    })
     .from(pointTransactions)
     .where(
       and(
         eq(pointTransactions.parishId, params.parishId),
-        eq(pointTransactions.serverId, params.serverId),
-      ),
+        eq(pointTransactions.serverId, params.serverId)
+      )
     );
 
   return Number(row?.total ?? 0);
@@ -205,8 +233,8 @@ export async function getBalances(params: {
     .where(
       and(
         eq(pointTransactions.parishId, params.parishId),
-        inArray(pointTransactions.serverId, params.serverIds),
-      ),
+        inArray(pointTransactions.serverId, params.serverIds)
+      )
     )
     .groupBy(pointTransactions.serverId);
 
@@ -238,14 +266,18 @@ export async function reverseTransaction(params: {
     .where(
       and(
         eq(pointTransactions.id, params.transactionId),
-        eq(pointTransactions.parishId, params.parishId),
-      ),
+        eq(pointTransactions.parishId, params.parishId)
+      )
     )
     .limit(1);
 
-  if (!original) return { reversed: false, message: "Transação não encontrada." };
+  if (!original)
+    return { reversed: false, message: "Transação não encontrada." };
   if (original.isReversal) {
-    return { reversed: false, message: "Não é possível reverter uma reversão." };
+    return {
+      reversed: false,
+      message: "Não é possível reverter uma reversão.",
+    };
   }
 
   const [alreadyReversed] = await db
@@ -254,12 +286,13 @@ export async function reverseTransaction(params: {
     .where(
       and(
         eq(pointTransactions.parishId, params.parishId),
-        eq(pointTransactions.reversesTransactionId, params.transactionId),
-      ),
+        eq(pointTransactions.reversesTransactionId, params.transactionId)
+      )
     )
     .limit(1);
 
-  if (alreadyReversed) return { reversed: false, message: "Esta transação já foi revertida." };
+  if (alreadyReversed)
+    return { reversed: false, message: "Esta transação já foi revertida." };
 
   await db.insert(pointTransactions).values({
     parishId: params.parishId,
@@ -311,8 +344,8 @@ export async function adjustPoints(params: {
     .where(
       and(
         eq(pointTransactions.idempotencyKey, idempotencyKey),
-        eq(pointTransactions.parishId, params.parishId),
-      ),
+        eq(pointTransactions.parishId, params.parishId)
+      )
     )
     .limit(1);
 
@@ -328,6 +361,7 @@ export async function evaluateAutomaticAchievements(params: {
   serverId: number;
 }): Promise<number> {
   try {
+    await evaluateApprovedAchievements(params.parishId, params.serverId);
     const db = await getDb();
     if (!db) return 0;
 
@@ -337,11 +371,15 @@ export async function evaluateAutomaticAchievements(params: {
       .where(
         and(
           eq(achievements.parishId, params.parishId),
-          eq(achievements.status, "ACTIVE"),
-        ),
+          eq(achievements.status, "ACTIVE")
+        )
       );
 
-    const automatic = catalog.filter(a => a.criteriaKind !== "MANUAL_ONLY");
+    const automatic = catalog.filter(
+      a =>
+        a.criteriaKind !== "MANUAL_ONLY" &&
+        !DEFAULT_ACHIEVEMENTS.some(definition => definition.name === a.name)
+    );
     if (automatic.length === 0) return 0;
 
     const alreadyGranted = await db
@@ -350,8 +388,8 @@ export async function evaluateAutomaticAchievements(params: {
       .where(
         and(
           eq(serverAchievements.parishId, params.parishId),
-          eq(serverAchievements.serverId, params.serverId),
-        ),
+          eq(serverAchievements.serverId, params.serverId)
+        )
       );
     const grantedIds = new Set(alreadyGranted.map(g => g.achievementId));
 
@@ -367,13 +405,14 @@ export async function evaluateAutomaticAchievements(params: {
       .where(
         and(
           eq(pointTransactions.parishId, params.parishId),
-          eq(pointTransactions.serverId, params.serverId),
-        ),
+          eq(pointTransactions.serverId, params.serverId)
+        )
       );
 
     const totalPoints = transactions.reduce((sum, t) => sum + t.pointsDelta, 0);
     const countBy = (type: PointEventType) =>
-      transactions.filter(t => t.eventType === type && t.pointsDelta > 0).length;
+      transactions.filter(t => t.eventType === type && t.pointsDelta > 0)
+        .length;
 
     // Consecutividade não pode ser inferida da contagem de transações: depende
     // da ordem cronológica das celebrações. Resolvido sob demanda para não
@@ -460,13 +499,19 @@ export async function countConsecutiveConfirmations(params: {
       startTime: celebrations.startTime,
     })
     .from(scheduleAssignments)
-    .innerJoin(celebrations, eq(celebrations.id, scheduleAssignments.celebrationId))
-    .leftJoin(attendanceRecords, eq(attendanceRecords.assignmentId, scheduleAssignments.id))
+    .innerJoin(
+      celebrations,
+      eq(celebrations.id, scheduleAssignments.celebrationId)
+    )
+    .leftJoin(
+      attendanceRecords,
+      eq(attendanceRecords.assignmentId, scheduleAssignments.id)
+    )
     .where(
       and(
         eq(scheduleAssignments.parishId, params.parishId),
-        eq(scheduleAssignments.serverId, params.serverId),
-      ),
+        eq(scheduleAssignments.serverId, params.serverId)
+      )
     )
     .orderBy(desc(celebrations.date), desc(celebrations.startTime))
     .limit(200);
@@ -476,9 +521,11 @@ export async function countConsecutiveConfirmations(params: {
     // Ausência registrada quebra a sequência, mesmo que tenha sido confirmada.
     if (
       row.attendanceStatus &&
-      ["UNJUSTIFIED_ABSENCE", "JUSTIFIED_ABSENCE", "COMMUNICATED_ABSENCE"].includes(
-        row.attendanceStatus,
-      )
+      [
+        "UNJUSTIFIED_ABSENCE",
+        "JUSTIFIED_ABSENCE",
+        "COMMUNICATED_ABSENCE",
+      ].includes(row.attendanceStatus)
     ) {
       break;
     }
@@ -488,7 +535,11 @@ export async function countConsecutiveConfirmations(params: {
       continue;
     }
 
-    if (["DECLINED", "SUBSTITUTED", "CANCELLED", "CONFLICT"].includes(row.assignmentStatus)) {
+    if (
+      ["DECLINED", "SUBSTITUTED", "CANCELLED", "CONFLICT"].includes(
+        row.assignmentStatus
+      )
+    ) {
       break;
     }
 
@@ -511,7 +562,12 @@ export async function getRanking(params: {
 }): Promise<{
   enabled: boolean;
   includesMinors: boolean;
-  entries: Array<{ serverId: number; name: string; points: number; isMinor: boolean }>;
+  entries: Array<{
+    serverId: number;
+    name: string;
+    points: number;
+    isMinor: boolean;
+  }>;
 }> {
   const db = await getDb();
   if (!db) return { enabled: false, includesMinors: false, entries: [] };
@@ -528,10 +584,17 @@ export async function getRanking(params: {
 
   const conditions = [eq(pointTransactions.parishId, params.parishId)];
   if (params.periodStart) {
-    conditions.push(gte(pointTransactions.createdAt, new Date(`${params.periodStart}T00:00:00`)));
+    conditions.push(
+      gte(
+        pointTransactions.createdAt,
+        new Date(`${params.periodStart}T00:00:00`)
+      )
+    );
   }
   if (params.periodEnd) {
-    conditions.push(lte(pointTransactions.createdAt, new Date(`${params.periodEnd}T23:59:59`)));
+    conditions.push(
+      lte(pointTransactions.createdAt, new Date(`${params.periodEnd}T23:59:59`))
+    );
   }
 
   const rows = await db
@@ -548,11 +611,15 @@ export async function getRanking(params: {
         eq(altarServers.id, pointTransactions.serverId),
         // Defesa em profundidade: o join também é restrito à paróquia, para que
         // nenhum nome de outra instalação possa aparecer no ranking.
-        eq(altarServers.parishId, params.parishId),
-      ),
+        eq(altarServers.parishId, params.parishId)
+      )
     )
     .where(and(...conditions))
-    .groupBy(pointTransactions.serverId, altarServers.name, altarServers.birthDate)
+    .groupBy(
+      pointTransactions.serverId,
+      altarServers.name,
+      altarServers.birthDate
+    )
     .orderBy(desc(sql`COALESCE(SUM(${pointTransactions.pointsDelta}), 0)`))
     .limit(params.limit ?? 100);
 

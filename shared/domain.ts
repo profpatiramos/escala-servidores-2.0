@@ -6,7 +6,12 @@
 // ---------------------------------------------------------------------------
 // Papéis e atores
 // ---------------------------------------------------------------------------
-export const PARISH_ROLES = ["PARISH_ADMIN", "COORDINATOR", "PRIEST", "RESPONSIBLE"] as const;
+export const PARISH_ROLES = [
+  "PARISH_ADMIN",
+  "COORDINATOR",
+  "PRIEST",
+  "RESPONSIBLE",
+] as const;
 export type ParishRoleName = (typeof PARISH_ROLES)[number];
 
 export const ALL_ROLES = [
@@ -95,7 +100,11 @@ export type FamilyLinkStatus = (typeof FAMILY_LINK_STATUS)[number];
 // ---------------------------------------------------------------------------
 // Funções litúrgicas e habilitações
 // ---------------------------------------------------------------------------
-export const QUALIFICATION_STATUS = ["NOT_QUALIFIED", "IN_TRAINING", "QUALIFIED"] as const;
+export const QUALIFICATION_STATUS = [
+  "NOT_QUALIFIED",
+  "IN_TRAINING",
+  "QUALIFIED",
+] as const;
 export type QualificationStatus = (typeof QUALIFICATION_STATUS)[number];
 
 export const QUALIFICATION_LABELS: Record<QualificationStatus, string> = {
@@ -104,7 +113,11 @@ export const QUALIFICATION_LABELS: Record<QualificationStatus, string> = {
   QUALIFIED: "Habilitado",
 };
 
-export const FORMATION_STATUS = ["IN_PROGRESS", "COMPLETED", "CANCELLED"] as const;
+export const FORMATION_STATUS = [
+  "IN_PROGRESS",
+  "COMPLETED",
+  "CANCELLED",
+] as const;
 export type FormationStatus = (typeof FORMATION_STATUS)[number];
 
 export const FORMATION_STATUS_LABELS: Record<FormationStatus, string> = {
@@ -115,7 +128,11 @@ export const FORMATION_STATUS_LABELS: Record<FormationStatus, string> = {
 
 /** Funções litúrgicas sugeridas ao criar uma nova paróquia. */
 export const DEFAULT_LITURGICAL_ROLES = [
-  { name: "Turíbulo", description: "Conduz o turíbulo durante a celebração.", minAge: 12 },
+  {
+    name: "Turíbulo",
+    description: "Conduz o turíbulo durante a celebração.",
+    minAge: 12,
+  },
   { name: "Naveta", description: "Conduz a naveta com o incenso.", minAge: 10 },
   { name: "Cruz", description: "Conduz a cruz processional.", minAge: 12 },
   { name: "Velas", description: "Conduz as velas (ceroferário).", minAge: 8 },
@@ -134,7 +151,11 @@ export const AVAILABILITY_SCOPE_LABELS: Record<AvailabilityScope, string> = {
   FAMILY: "Disponibilidade da família",
 };
 
-export const AVAILABILITY_TYPES = ["AVAILABLE", "PREFERRED", "UNAVAILABLE"] as const;
+export const AVAILABILITY_TYPES = [
+  "AVAILABLE",
+  "PREFERRED",
+  "UNAVAILABLE",
+] as const;
 export type AvailabilityType = (typeof AVAILABILITY_TYPES)[number];
 
 export const AVAILABILITY_TYPE_LABELS: Record<AvailabilityType, string> = {
@@ -143,7 +164,10 @@ export const AVAILABILITY_TYPE_LABELS: Record<AvailabilityType, string> = {
   UNAVAILABLE: "Indisponível",
 };
 
-export const EXCEPTION_TYPES = ["UNAVAILABLE", "EXCEPTIONALLY_AVAILABLE"] as const;
+export const EXCEPTION_TYPES = [
+  "UNAVAILABLE",
+  "EXCEPTIONALLY_AVAILABLE",
+] as const;
 export type ExceptionType = (typeof EXCEPTION_TYPES)[number];
 
 export const EXCEPTION_TYPE_LABELS: Record<ExceptionType, string> = {
@@ -170,7 +194,15 @@ export const WEEKDAY_LABELS = [
   "Sábado",
 ] as const;
 
-export const WEEKDAY_SHORT_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
+export const WEEKDAY_SHORT_LABELS = [
+  "Dom",
+  "Seg",
+  "Ter",
+  "Qua",
+  "Qui",
+  "Sex",
+  "Sáb",
+] as const;
 
 /** Número mínimo de preferências quando a paróquia exige o preenchimento. */
 export const MIN_SCHEDULE_PREFERENCES = 2;
@@ -232,7 +264,11 @@ export const SCHEDULE_STATUS_LABELS: Record<ScheduleStatus, string> = {
 export const SCHEDULE_SOURCES = ["MANUAL", "AI"] as const;
 export type ScheduleSource = (typeof SCHEDULE_SOURCES)[number];
 
-export const ASSIGNMENT_SOURCES = ["MANUAL", "AI_PROPOSED", "AI_ADJUSTED"] as const;
+export const ASSIGNMENT_SOURCES = [
+  "MANUAL",
+  "AI_PROPOSED",
+  "AI_ADJUSTED",
+] as const;
 export type AssignmentSource = (typeof ASSIGNMENT_SOURCES)[number];
 
 export const ASSIGNMENT_SOURCE_LABELS: Record<AssignmentSource, string> = {
@@ -269,7 +305,12 @@ export const CONFIRMATION_STATUS_LABELS: Record<ConfirmationStatus, string> = {
 export const CONFLICT_STATUS = ["OPEN", "RESOLVED"] as const;
 export type ConflictStatus = (typeof CONFLICT_STATUS)[number];
 
-export const SUBSTITUTION_STATUS = ["PENDING", "APPROVED", "REJECTED", "CANCELLED"] as const;
+export const SUBSTITUTION_STATUS = [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+] as const;
 export type SubstitutionStatus = (typeof SUBSTITUTION_STATUS)[number];
 
 export const SUBSTITUTION_STATUS_LABELS: Record<SubstitutionStatus, string> = {
@@ -316,7 +357,13 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   OTHER: "Outro",
 };
 
-export const EVENT_STATUS = ["DRAFT", "PUBLISHED", "CLOSED", "CANCELLED", "ARCHIVED"] as const;
+export const EVENT_STATUS = [
+  "DRAFT",
+  "PUBLISHED",
+  "CLOSED",
+  "CANCELLED",
+  "ARCHIVED",
+] as const;
 export type EventStatus = (typeof EVENT_STATUS)[number];
 
 export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
@@ -337,7 +384,10 @@ export const PARTICIPATION_RESPONSES = [
 ] as const;
 export type ParticipationResponse = (typeof PARTICIPATION_RESPONSES)[number];
 
-export const PARTICIPATION_RESPONSE_LABELS: Record<ParticipationResponse, string> = {
+export const PARTICIPATION_RESPONSE_LABELS: Record<
+  ParticipationResponse,
+  string
+> = {
   INTERESTED: "Tenho interesse",
   REGISTERED: "Inscrito",
   CONFIRMED: "Participação confirmada",
@@ -349,10 +399,18 @@ export const PARTICIPATION_RESPONSE_LABELS: Record<ParticipationResponse, string
 export const INTEREST_STATUS = ["INTERESTED", "WITHDRAWN"] as const;
 export type InterestStatus = (typeof INTEREST_STATUS)[number];
 
-export const SHIFT_ASSIGNMENT_STATUS = ["ASSIGNED", "CONFIRMED", "DECLINED", "CANCELLED"] as const;
+export const SHIFT_ASSIGNMENT_STATUS = [
+  "ASSIGNED",
+  "CONFIRMED",
+  "DECLINED",
+  "CANCELLED",
+] as const;
 export type ShiftAssignmentStatus = (typeof SHIFT_ASSIGNMENT_STATUS)[number];
 
-export const SHIFT_ASSIGNMENT_STATUS_LABELS: Record<ShiftAssignmentStatus, string> = {
+export const SHIFT_ASSIGNMENT_STATUS_LABELS: Record<
+  ShiftAssignmentStatus,
+  string
+> = {
   ASSIGNED: "Escalado",
   CONFIRMED: "Confirmado",
   DECLINED: "Recusado",
@@ -472,7 +530,8 @@ export const ACHIEVEMENT_CRITERIA_KINDS = [
   "FORMATION_COUNT",
   "MANUAL_ONLY",
 ] as const;
-export type AchievementCriteriaKind = (typeof ACHIEVEMENT_CRITERIA_KINDS)[number];
+export type AchievementCriteriaKind =
+  (typeof ACHIEVEMENT_CRITERIA_KINDS)[number];
 
 /** Conquistas padrão criadas junto com a paróquia. */
 export const DEFAULT_ACHIEVEMENTS: Array<{
@@ -482,41 +541,65 @@ export const DEFAULT_ACHIEVEMENTS: Array<{
   threshold: number;
 }> = [
   {
-    name: "Primeira participação",
-    description: "Sua primeira presença registrada em uma celebração.",
-    criteriaKind: "FIRST_PARTICIPATION",
+    name: "Pode contar comigo",
+    description:
+      "Participar de cinco celebrações, com presença registrada pela coordenação.",
+    criteriaKind: "PARTICIPATION_COUNT",
+    threshold: 5,
+  },
+  {
+    name: "Mão amiga",
+    description:
+      "Realizar uma substituição aprovada, com presença registrada na celebração.",
+    criteriaKind: "MANUAL_ONLY",
     threshold: 1,
   },
   {
-    name: "Participação consistente",
-    description: "Dez presenças registradas em celebrações.",
-    criteriaKind: "PARTICIPATION_COUNT",
-    threshold: 10,
+    name: "Quem acolhe, ensina",
+    description:
+      "Acompanhar um servidor iniciante, com reconhecimento da coordenação.",
+    criteriaKind: "MANUAL_ONLY",
+    threshold: 1,
   },
   {
-    name: "Presença constante",
-    description: "Trinta presenças registradas em celebrações.",
-    criteriaKind: "PARTICIPATION_COUNT",
-    threshold: 30,
+    name: "Comunicação responsável",
+    description:
+      "Responder a cinco convocações dentro do prazo de antecedência da paróquia, confirmando ou informando indisponibilidade.",
+    criteriaKind: "MANUAL_ONLY",
+    threshold: 5,
   },
   {
-    name: "Voluntário da comunidade",
-    description: "Participou de três turnos de voluntariado.",
-    criteriaKind: "VOLUNTEER_COUNT",
-    threshold: 3,
+    name: "Servir além do altar",
+    description:
+      "Participar de uma ação solidária, com confirmação da coordenação.",
+    criteriaKind: "MANUAL_ONLY",
+    threshold: 1,
   },
   {
-    name: "Em formação contínua",
-    description: "Concluiu duas formações.",
-    criteriaKind: "FORMATION_COUNT",
-    threshold: 2,
+    name: "Presença especial",
+    description:
+      "Servir em uma celebração cadastrada como solenidade, com presença registrada.",
+    criteriaKind: "MANUAL_ONLY",
+    threshold: 1,
+  },
+  {
+    name: "Nossa caminhada",
+    description:
+      "Completar um ano na pastoral, conforme a data de ingresso cadastrada.",
+    criteriaKind: "MANUAL_ONLY",
+    threshold: 1,
   },
 ];
 
 // ---------------------------------------------------------------------------
 // Inteligência artificial
 // ---------------------------------------------------------------------------
-export const AI_RUN_STATUS = ["RUNNING", "COMPLETED", "FAILED", "INFEASIBLE"] as const;
+export const AI_RUN_STATUS = [
+  "RUNNING",
+  "COMPLETED",
+  "FAILED",
+  "INFEASIBLE",
+] as const;
 export type AiRunStatus = (typeof AI_RUN_STATUS)[number];
 
 export const AI_RUN_STATUS_LABELS: Record<AiRunStatus, string> = {
@@ -587,7 +670,12 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-export const NOTIFICATION_STATUS = ["PENDING", "SENT", "READ", "FAILED"] as const;
+export const NOTIFICATION_STATUS = [
+  "PENDING",
+  "SENT",
+  "READ",
+  "FAILED",
+] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUS)[number];
 
 // ---------------------------------------------------------------------------
@@ -696,12 +784,20 @@ export const SECURITY = {
 // ---------------------------------------------------------------------------
 
 /** Calcula a idade em anos a partir da data de nascimento. Nunca persistir o resultado. */
-export function calculateAge(birthDate: Date | string, reference: Date = new Date()): number {
+export function calculateAge(
+  birthDate: Date | string,
+  reference: Date = new Date()
+): number {
   // PostgreSQL date is a calendar date; parsing YYYY-MM-DD as UTC shifts it
   // to the previous day in Brazil. Keep the supplied calendar components.
-  const [year, month, day] = typeof birthDate === "string"
-    ? birthDate.slice(0, 10).split("-").map(Number)
-    : [birthDate.getFullYear(), birthDate.getMonth() + 1, birthDate.getDate()];
+  const [year, month, day] =
+    typeof birthDate === "string"
+      ? birthDate.slice(0, 10).split("-").map(Number)
+      : [
+          birthDate.getFullYear(),
+          birthDate.getMonth() + 1,
+          birthDate.getDate(),
+        ];
   let age = reference.getFullYear() - year;
   const monthDiff = reference.getMonth() + 1 - month;
   if (monthDiff < 0 || (monthDiff === 0 && reference.getDate() < day)) {
@@ -711,7 +807,10 @@ export function calculateAge(birthDate: Date | string, reference: Date = new Dat
 }
 
 /** Indica se o servidor é menor de idade na data de referência. */
-export function isMinor(birthDate: Date | string, reference: Date = new Date()): boolean {
+export function isMinor(
+  birthDate: Date | string,
+  reference: Date = new Date()
+): boolean {
   return calculateAge(birthDate, reference) < SECURITY.adultAge;
 }
 
@@ -733,9 +832,12 @@ export function timeRangesOverlap(
   startA: string,
   endA: string,
   startB: string,
-  endB: string,
+  endB: string
 ): boolean {
-  return timeToMinutes(startA) < timeToMinutes(endB) && timeToMinutes(startB) < timeToMinutes(endA);
+  return (
+    timeToMinutes(startA) < timeToMinutes(endB) &&
+    timeToMinutes(startB) < timeToMinutes(endA)
+  );
 }
 
 /** Verifica se um intervalo contém completamente outro intervalo. */
@@ -743,7 +845,7 @@ export function timeRangeContains(
   outerStart: string,
   outerEnd: string,
   innerStart: string,
-  innerEnd: string,
+  innerEnd: string
 ): boolean {
   return (
     timeToMinutes(outerStart) <= timeToMinutes(innerStart) &&

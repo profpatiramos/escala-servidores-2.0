@@ -7,6 +7,13 @@
  * em vez de simplesmente mostrar uma lista vazia.
  */
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { MANUAL_ACHIEVEMENTS } from "@shared/achievementRules";
+import { DEFAULT_ACHIEVEMENTS } from "@shared/domain";
+import { errorMessage } from "@/lib/format";
 import { Award, Info, Medal, Trophy } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -72,6 +79,43 @@ export default function Gamification() {
   );
   const ranking = trpc.gamification.ranking.useQuery({ limit: 20 });
   const rules = trpc.gamification.rules.forParticipants.useQuery();
+  const utils = trpc.useUtils();
+  const catalog = trpc.gamification.achievements.catalog.useQuery();
+  const [achievementId, setAchievementId] = useState("");
+  const [reason, setReason] = useState("");
+  const refresh = () => {
+    void utils.gamification.achievements.catalog.invalidate();
+    void utils.gamification.balance.invalidate();
+  };
+  const install = trpc.gamification.achievements.installApproved.useMutation({
+    onSuccess: () => {
+      refresh();
+      toast.success(
+        "As sete conquistas foram ativadas. O histórico anterior foi preservado."
+      );
+    },
+    onError: e => toast.error(errorMessage(e)),
+  });
+  const grant = trpc.gamification.achievements.grant.useMutation({
+    onSuccess: () => {
+      refresh();
+      setReason("");
+      setAchievementId("");
+      toast.success("Conquista concedida.");
+    },
+    onError: e => toast.error(errorMessage(e)),
+  });
+  const updateJoined = trpc.people.servers.update.useMutation({
+    onSuccess: () => {
+      void utils.people.servers.list.invalidate();
+      void utils.gamification.balance.invalidate();
+      toast.success("Data de ingresso atualizada.");
+    },
+    onError: error => toast.error(errorMessage(error)),
+  });
+  const needsCatalog = DEFAULT_ACHIEVEMENTS.some(
+    definition => !catalog.data?.some(a => a.name === definition.name)
+  );
 
   return (
     <div className="space-y-6">
@@ -83,6 +127,190 @@ export default function Gamification() {
           Pontos e conquistas por participação no serviço do altar.
         </p>
       </header>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Conquistas da pastoral</CardTitle>
+          <CardDescription>
+            Marcos acumulados, sem exigir sequências perfeitas. Cada conquista é
+            concedida uma única vez e não acrescenta pontos extras.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {catalog.isError ? (
+            <p role="alert">
+              Não foi possível carregar as conquistas.{" "}
+              <Button variant="outline" onClick={() => void catalog.refetch()}>
+                Tentar novamente
+              </Button>
+            </p>
+          ) : catalog.isLoading ? (
+            <Skeleton className="h-24" />
+          ) : (
+            <>
+              {isManager && needsCatalog && (
+                <div className="space-y-2 rounded border p-3">
+                  <p className="text-sm">
+                    Atualize o catálogo para as sete conquistas aprovadas. As
+                    antigas serão arquivadas e os reconhecimentos já concedidos
+                    serão mantidos.
+                  </p>
+                  <Button
+                    disabled={install.isPending}
+                    onClick={() => install.mutate()}
+                  >
+                    {install.isPending
+                      ? "Atualizando…"
+                      : "Ativar as sete conquistas"}
+                  </Button>
+                </div>
+              )}
+              <ul className="divide-y">
+                {(catalog.data ?? []).map(a => (
+                  <li key={a.id} className="space-y-1 py-3">
+                    <p className="font-medium">
+                      {a.name}{" "}
+                      <Badge variant="outline">
+                        {MANUAL_ACHIEVEMENTS.includes(a.name) ||
+                        (!DEFAULT_ACHIEVEMENTS.some(d => d.name === a.name) &&
+                          a.criteriaKind === "MANUAL_ONLY")
+                          ? "Confirmada pela coordenação"
+                          : "Automática"}
+                      </Badge>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {a.description}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {isManager && (
+                <div className="space-y-3 rounded border p-4">
+                  <h3 className="font-medium">Reconhecer uma contribuição</h3>
+                  <Label htmlFor="award-server">Servidor</Label>
+                  <select
+                    id="award-server"
+                    className="w-full rounded border bg-background p-2"
+                    value={effectiveServerId ?? ""}
+                    onChange={e => setSelectedServerId(Number(e.target.value))}
+                  >
+                    <option value="" disabled>
+                      Selecione o servidor
+                    </option>
+                    {options.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Label htmlFor="award-achievement">Conquista</Label>
+                  <select
+                    id="award-achievement"
+                    className="w-full rounded border bg-background p-2"
+                    value={achievementId}
+                    onChange={e => setAchievementId(e.target.value)}
+                  >
+                    <option value="">Selecione a conquista</option>
+                    {catalog.data
+                      ?.filter(
+                        a =>
+                          MANUAL_ACHIEVEMENTS.includes(a.name) ||
+                          (!DEFAULT_ACHIEVEMENTS.some(d => d.name === a.name) &&
+                            a.criteriaKind === "MANUAL_ONLY")
+                      )
+                      .map(a => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                  </select>
+                  <Label htmlFor="award-reason">
+                    Atividade realizada e motivo do reconhecimento
+                  </Label>
+                  <Input
+                    id="award-reason"
+                    value={reason}
+                    maxLength={500}
+                    onChange={e => setReason(e.target.value)}
+                    placeholder="Descreva a contribuição observada"
+                  />
+                  <Button
+                    disabled={
+                      grant.isPending ||
+                      !effectiveServerId ||
+                      !achievementId ||
+                      reason.trim().length < 3
+                    }
+                    onClick={() => {
+                      if (effectiveServerId)
+                        grant.mutate({
+                          serverId: effectiveServerId,
+                          achievementId: Number(achievementId),
+                          reason: reason.trim(),
+                        });
+                    }}
+                  >
+                    {grant.isPending ? "Concedendo…" : "Conceder conquista"}
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                O progresso automático é conferido ao abrir o extrato.
+                Comunicação considera a antecedência configurada na paróquia;
+                Presença especial exige celebração do tipo Solenidade; Nossa
+                caminhada exige a data de ingresso no cadastro do servidor.
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {isManager && effectiveServerId && (
+        <Card>
+          <CardContent className="space-y-3 p-5">
+            <h2 className="font-medium">Tempo de pastoral · Nossa caminhada</h2>
+            <p className="text-sm text-muted-foreground">
+              Informe a data real de ingresso de{" "}
+              {options.find(s => s.id === effectiveServerId)?.name}. A conquista
+              é concedida após um ano. Não use a data de nascimento.
+            </p>
+            <form
+              key={effectiveServerId}
+              className="flex flex-wrap items-end gap-3"
+              onSubmit={event => {
+                event.preventDefault();
+                const value = String(
+                  new FormData(event.currentTarget).get("joinedAt") ?? ""
+                );
+                updateJoined.mutate({
+                  id: effectiveServerId,
+                  joinedAt: value || null,
+                });
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="pastoral-joined">Data de ingresso</Label>
+                <Input
+                  id="pastoral-joined"
+                  name="joinedAt"
+                  type="date"
+                  defaultValue={
+                    servers.data?.find(s => s.id === effectiveServerId)
+                      ?.joinedAt ?? ""
+                  }
+                />
+              </div>
+              <Button
+                variant="outline"
+                disabled={updateJoined.isPending}
+                type="submit"
+              >
+                Salvar data de ingresso
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="balance">
         <TabsList>

@@ -6,6 +6,12 @@
  * por edição ou exclusão de transação.
  */
 import { POINT_EVENT_TYPES } from "@shared/domain";
+import { DEFAULT_ACHIEVEMENTS } from "@shared/domain";
+import { MANUAL_ACHIEVEMENTS } from "@shared/achievementRules";
+import {
+  evaluateApprovedAchievements,
+  installApprovedAchievements,
+} from "../services/approvedAchievements";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { calendarDateSchema } from "@shared/validation";
@@ -180,7 +186,10 @@ export const gamificationRouter = router({
         effective:
           !!settings?.enabled &&
           rule.enabled &&
-          (!["JUSTIFIED_ABSENCE", "UNJUSTIFIED_ABSENCE"].includes(rule.eventType) || !!settings?.penaltiesEnabled),
+          (!["JUSTIFIED_ABSENCE", "UNJUSTIFIED_ABSENCE"].includes(
+            rule.eventType
+          ) ||
+            !!settings?.penaltiesEnabled),
       }));
     }),
     list: coordinatorProcedure.query(async ({ ctx }) => {
@@ -260,6 +269,8 @@ export const gamificationRouter = router({
         parishId: ctx.parishId,
         serverId: input.serverId,
       });
+      if (settings?.enabled)
+        await evaluateApprovedAchievements(ctx.parishId, input.serverId);
 
       const history =
         settings?.historyEnabled === false
@@ -391,6 +402,29 @@ export const gamificationRouter = router({
 
   /** Catálogo de conquistas da paróquia. */
   achievements: router({
+    catalog: parishProcedure.query(async ({ ctx }) => {
+      const db = await getDbOrThrow();
+      return db
+        .select()
+        .from(achievements)
+        .where(
+          and(
+            eq(achievements.parishId, ctx.parishId),
+            eq(achievements.status, "ACTIVE")
+          )
+        )
+        .orderBy(achievements.name);
+    }),
+    installApproved: coordinatorProcedure.mutation(async ({ ctx }) => {
+      await installApprovedAchievements(ctx.parishId);
+      await recordAudit(ctx.actor, {
+        action: "GAMIFICATION_SETTINGS_UPDATED",
+        entityType: "achievement",
+        metadata: { catalog: "approved-seven" },
+        ...requestMeta(ctx),
+      });
+      return { success: true };
+    }),
     list: coordinatorProcedure.query(async ({ ctx }) => {
       const db = await getDbOrThrow();
       return db
@@ -413,16 +447,28 @@ export const gamificationRouter = router({
         const db = await getDbOrThrow();
 
         const [achievement] = await db
-          .select({ id: achievements.id, name: achievements.name })
+          .select({
+            id: achievements.id,
+            name: achievements.name,
+            criteriaKind: achievements.criteriaKind,
+          })
           .from(achievements)
           .where(
             and(
               eq(achievements.id, input.achievementId),
-              eq(achievements.parishId, ctx.parishId)
+              eq(achievements.parishId, ctx.parishId),
+              eq(achievements.status, "ACTIVE")
             )
           )
           .limit(1);
         if (!achievement) throw notFound("Conquista");
+        if (
+          DEFAULT_ACHIEVEMENTS.some(a => a.name === achievement.name) &&
+          !MANUAL_ACHIEVEMENTS.includes(achievement.name)
+        )
+          throw badRequest(
+            "Esta conquista é concedida automaticamente a partir dos registros da pastoral."
+          );
 
         const [server] = await db
           .select({ id: altarServers.id })
