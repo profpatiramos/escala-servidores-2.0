@@ -43,7 +43,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { calculateAge, errorMessage, formatDate, isMinor } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
-import type { ServerStatus } from "@shared/domain";
+import {
+  RELATIONSHIP_TYPES,
+  RELATIONSHIP_LABELS,
+  type RelationshipType,
+  type ServerStatus,
+} from "@shared/domain";
 import PeopleImport from "@/components/PeopleImport";
 
 const STATUS_OPTIONS: Array<{ value: ServerStatus; label: string }> = [
@@ -63,6 +68,13 @@ export default function Servers() {
   const [search, setSearch] = useState("");
   const [includeInactive, setIncludeInactive] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [responsibleId, setResponsibleId] = useState("");
+  const [relationshipType, setRelationshipType] =
+    useState<RelationshipType>("GUARDIAN");
+  const responsibles = trpc.people.responsibles.list.useQuery(
+    { includeInactive: false },
+    { enabled: createOpen }
+  );
   const [codeDialog, setCodeDialog] = useState<{
     name: string;
     code: string;
@@ -92,6 +104,9 @@ export default function Servers() {
     onSuccess: () => {
       void utils.people.servers.list.invalidate();
       setCreateOpen(false);
+      setResponsibleId("");
+      setRelationshipType("GUARDIAN");
+      void utils.people.responsibles.list.invalidate();
       setForm({
         name: "",
         birthDate: "",
@@ -348,6 +363,78 @@ export default function Servers() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="server-responsible">
+                Responsável{" "}
+                {form.birthDate && isMinor(form.birthDate)
+                  ? "(obrigatório para menores)"
+                  : "(opcional)"}
+              </Label>
+              <select
+                id="server-responsible"
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                value={responsibleId}
+                onChange={event => setResponsibleId(event.target.value)}
+                disabled={
+                  responsibles.isLoading ||
+                  responsibles.isError ||
+                  create.isPending
+                }
+              >
+                <option value="">
+                  {responsibles.isLoading
+                    ? "Carregando responsáveis…"
+                    : "Selecione o responsável cadastrado"}
+                </option>
+                {(responsibles.data ?? []).map(person => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+              </select>
+              {responsibles.isError ? (
+                <p role="alert">
+                  Não foi possível carregar os responsáveis.{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => void responsibles.refetch()}
+                  >
+                    Tentar novamente
+                  </button>
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Escolha o responsável já cadastrado. Se ainda não existe,
+                  cadastre-o primeiro em{" "}
+                  <Link href="/responsaveis" className="text-primary underline">
+                    Responsáveis
+                  </Link>
+                  , sem selecionar um servidor.
+                </p>
+              )}
+            </div>
+            {responsibleId && (
+              <div className="space-y-2">
+                <Label htmlFor="server-relationship">
+                  Parentesco ou relação
+                </Label>
+                <select
+                  id="server-relationship"
+                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  value={relationshipType}
+                  onChange={event =>
+                    setRelationshipType(event.target.value as RelationshipType)
+                  }
+                >
+                  {RELATIONSHIP_TYPES.map(type => (
+                    <option key={type} value={type}>
+                      {RELATIONSHIP_LABELS[type]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="space-y-2">
               <Label htmlFor="heightCm">Altura em cm (opcional)</Label>
               <Input
                 id="heightCm"
@@ -411,6 +498,8 @@ export default function Servers() {
                 create.mutate({
                   name: form.name.trim(),
                   birthDate: form.birthDate,
+                  responsibleId: responsibleId ? Number(responsibleId) : null,
+                  relationshipType,
                   heightCm:
                     form.heightCm.length > 0 ? Number(form.heightCm) : null,
                   fatherName:
@@ -428,7 +517,11 @@ export default function Servers() {
               disabled={
                 create.isPending ||
                 form.name.trim().length < 3 ||
-                form.birthDate.length === 0
+                form.birthDate.length === 0 ||
+                (isMinor(form.birthDate) &&
+                  (!responsibleId ||
+                    responsibles.isError ||
+                    responsibles.isLoading))
               }
             >
               {create.isPending && (
