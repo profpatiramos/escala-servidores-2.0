@@ -116,13 +116,13 @@ export default function Participation() {
                     ? "não poderá participar"
                     : "aguardando resposta"}
                 {row.respondedAt
-                  ? ` · ${formatDateTime(row.respondedAt)} · ${row.early ? "com antecedência" : "após o prazo"}`
+                  ? ` · ${formatDateTime(row.respondedAt, row.timeZone)} · ${row.early ? "com antecedência" : "após o prazo"}`
                   : ""}
               </p>
               <p className="text-sm">
                 Check-in:{" "}
                 {row.checkedInAt
-                  ? `${formatDateTime(row.checkedInAt)} · ${row.checkinEarly ? "antes do início" : "após o início"}`
+                  ? `${formatDateTime(row.checkedInAt, row.timeZone)} · ${row.checkinEarly ? "antes do início" : "após o início"}`
                   : "ainda não realizado"}
               </p>
               <p className="text-sm">

@@ -39,6 +39,7 @@ type Activity = {
   checkedInAt: Date | null;
   checkinEarly: boolean | null;
   attendanceStatus: string | null;
+  timeZone: string;
 };
 async function activities(
   parishId: number,
@@ -51,7 +52,7 @@ async function activities(
     (extract(epoch FROM ((e.date::date+e."startTime"::time) AT TIME ZONE p.timezone))*1000)::double precision AS start,
     (extract(epoch FROM ((e.date::date+e."endTime"::time) AT TIME ZONE p.timezone))*1000)::double precision AS "end",
     c."respondedAt",COALESCE(c."respondedAt"<=((e.date::date+e."startTime"::time) AT TIME ZONE p.timezone)-make_interval(hours=>COALESCE(g."earlyConfirmationHours",48)),false) AS early,
-    ci."createdAt" AS "checkedInAt",(ci.metadata->>'beforeStart')::boolean AS "checkinEarly",ar.status AS "attendanceStatus"
+    ci."createdAt" AS "checkedInAt",(ci.metadata->>'beforeStart')::boolean AS "checkinEarly",ar.status AS "attendanceStatus",p.timezone AS "timeZone"
     FROM schedule_assignments a JOIN altar_servers s ON s.id=a."serverId" JOIN celebrations e ON e.id=a."celebrationId" JOIN schedules sc ON sc.id=a."scheduleId" JOIN parish_roles r ON r.id=a."parishRoleId" JOIN parishes p ON p.id=a."parishId"
     LEFT JOIN gamification_settings g ON g."parishId"=p.id
     LEFT JOIN LATERAL (SELECT "respondedAt" FROM confirmations WHERE "assignmentId"=a.id AND "parishId"=${parishId} ORDER BY "respondedAt" DESC,id DESC LIMIT 1) c ON true

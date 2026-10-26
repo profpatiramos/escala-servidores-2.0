@@ -31,11 +31,12 @@ export function formatTime(value: string | null | undefined): string {
 }
 
 /** Timestamps de negócio são instantes reais: aqui a conversão de fuso é correta. */
-export function formatDateTime(value: Date | string | null | undefined): string {
+export function formatDateTime(value: Date | string | null | undefined, timeZone?: string): string {
   if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString("pt-BR", {
+    timeZone,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
