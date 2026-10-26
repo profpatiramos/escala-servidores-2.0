@@ -42,6 +42,17 @@ describe("horários de participação", () => {
 
 describe("regressões da revisão de participação", () => {
   beforeEach(() => vi.clearAllMocks());
+  it("decodifica timestamps UTC crus antes de devolvê-los ao navegador", async () => {
+    mocks.db.mockResolvedValue({ execute: async () => ({ rows: [{
+      assignmentId: 10,
+      respondedAt: "2026-10-26 21:48:00.000000",
+      checkedInAt: "2026-10-26 21:49:00.000000",
+      timeZone: "America/Sao_Paulo",
+    }] }) });
+    const [row] = await caller().mine();
+    expect(row.respondedAt?.toISOString()).toBe("2026-10-26T21:48:00.000Z");
+    expect(row.checkedInAt?.toISOString()).toBe("2026-10-26T21:49:00.000Z");
+  });
   it("recusa candidatura de alguém já escalado na mesma celebração", async () => {
     const update = vi.fn();
     let assignmentsRead = 0;

@@ -51,7 +51,7 @@ async function activities(
     await db.execute(sql`SELECT a.id AS "assignmentId",a."serverId",s.name AS "serverName",e.id AS "celebrationId",e.title AS "celebrationTitle",e.date::text AS "celebrationDate",e."startTime"::text AS "celebrationStartTime",r.name AS "roleName",a.status,
     (extract(epoch FROM ((e.date::date+e."startTime"::time) AT TIME ZONE p.timezone))*1000)::double precision AS start,
     (extract(epoch FROM ((e.date::date+e."endTime"::time) AT TIME ZONE p.timezone))*1000)::double precision AS "end",
-    c."respondedAt",COALESCE(c."respondedAt"<=((e.date::date+e."startTime"::time) AT TIME ZONE p.timezone)-make_interval(hours=>COALESCE(g."earlyConfirmationHours",48)),false) AS early,
+    c."respondedAt",COALESCE((c."respondedAt" AT TIME ZONE 'UTC')<=((e.date::date+e."startTime"::time) AT TIME ZONE p.timezone)-make_interval(hours=>COALESCE(g."earlyConfirmationHours",48)),false) AS early,
     ci."createdAt" AS "checkedInAt",(ci.metadata->>'beforeStart')::boolean AS "checkinEarly",ar.status AS "attendanceStatus",p.timezone AS "timeZone"
     FROM schedule_assignments a JOIN altar_servers s ON s.id=a."serverId" JOIN celebrations e ON e.id=a."celebrationId" JOIN schedules sc ON sc.id=a."scheduleId" JOIN parish_roles r ON r.id=a."parishRoleId" JOIN parishes p ON p.id=a."parishId"
     LEFT JOIN gamification_settings g ON g."parishId"=p.id
@@ -61,7 +61,20 @@ async function activities(
     WHERE a."parishId"=${parishId} AND e."parishId"=${parishId} AND sc."parishId"=${parishId} AND sc.status='PUBLISHED' AND e.status IN ('SCHEDULED','DONE') AND a.status IN ('PENDING','CONFIRMED','DECLINED')
     AND e.date BETWEEN (CURRENT_TIMESTAMP AT TIME ZONE p.timezone)::date-30 AND (CURRENT_TIMESTAMP AT TIME ZONE p.timezone)::date+90
     ${serverId ? sql`AND a."serverId"=${serverId}` : sql``} ${celebrationId ? sql`AND e.id=${celebrationId}` : sql``} ORDER BY e.date,e."startTime",s.name LIMIT 1000`);
-  return result.rows as unknown as Activity[];
+  // Raw SQL bypasses Drizzle's timestamp decoder: UTC timestamp columns arrive
+  // without an offset. Decode them before serializing to the browser, where a
+  // bare timestamp would otherwise be interpreted in the device's local zone.
+  const rows = result.rows as unknown as Array<Omit<Activity, "respondedAt" | "checkedInAt"> & {
+    respondedAt: Date | string | null;
+    checkedInAt: Date | string | null;
+  }>;
+  const instant = (value: Date | string | null) => {
+    if (!value || value instanceof Date) return value ?? null;
+    return new Date(/(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(value)
+      ? value
+      : `${value.replace(" ", "T")}Z`);
+  };
+  return rows.map(row => ({ ...row, respondedAt: instant(row.respondedAt), checkedInAt: instant(row.checkedInAt) }));
 }
 export const participationRouter = router({
   mine: serverProcedure.query(({ ctx }) =>
