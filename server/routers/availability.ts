@@ -20,6 +20,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
+import { calendarDateSchema } from "@shared/validation";
 
 import {
   altarServers,
@@ -45,7 +46,7 @@ import {
   router,
 } from "../trpc";
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use o formato AAAA-MM-DD.");
+const dateSchema = calendarDateSchema;
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, "Horário inválido.");
 
 /** Normaliza o horário para HH:MM:SS, formato aceito pela coluna TIME. */

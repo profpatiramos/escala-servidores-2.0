@@ -8,9 +8,26 @@
  * - Menores não precisam de e-mail; o contato é do responsável.
  * - Todo dado é filtrado por `ctx.parishId`, que vem da sessão.
  */
-import { RELATIONSHIP_TYPES, SECURITY, SERVER_STATUS, calculateAge, isMinor } from "@shared/domain";
-import { and, count, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import {
+  RELATIONSHIP_TYPES,
+  SECURITY,
+  SERVER_STATUS,
+  calculateAge,
+  isMinor,
+} from "@shared/domain";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  like,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
+import { calendarDateSchema } from "@shared/validation";
 
 import {
   altarServers,
@@ -23,7 +40,11 @@ import {
   serverRoles,
   users,
 } from "../../drizzle/schema";
-import { generateAccessId, hashSecret, validatePasswordStrength } from "../auth/crypto";
+import {
+  generateAccessId,
+  hashSecret,
+  validatePasswordStrength,
+} from "../auth/crypto";
 import { getDbOrThrow } from "../db";
 import { recordAudit } from "../services/audit";
 import { issueAccessCode } from "../services/accessCodes";
@@ -37,13 +58,7 @@ import {
   router,
 } from "../trpc";
 
-const dateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use o formato AAAA-MM-DD.")
-  .refine(value => {
-    const date = new Date(`${value}T00:00:00`);
-    return !Number.isNaN(date.getTime());
-  }, "Data inválida.");
+const dateSchema = calendarDateSchema;
 
 const serverInput = z.object({
   name: z.string().trim().min(3, "Informe o nome completo."),
@@ -59,7 +74,10 @@ const serverInput = z.object({
 /** Valida que a data de nascimento é plausível para um servidor do altar. */
 function assertPlausibleBirthDate(birthDate: string): void {
   const age = calculateAge(birthDate);
-  if (age < 4) throw badRequest("A data de nascimento informada resulta em idade menor que 4 anos.");
+  if (age < 4)
+    throw badRequest(
+      "A data de nascimento informada resulta em idade menor que 4 anos."
+    );
   if (age > 100) throw badRequest("Verifique a data de nascimento informada.");
 }
 
@@ -76,14 +94,16 @@ export const peopleRouter = router({
             search: z.string().trim().max(120).optional(),
             includeInactive: z.boolean().default(false),
           })
-          .default({ includeInactive: false }),
+          .default({ includeInactive: false })
       )
       .query(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
 
         const conditions = [eq(responsibles.parishId, ctx.parishId)];
-        if (!input.includeInactive) conditions.push(eq(responsibles.status, "ACTIVE"));
-        if (input.search) conditions.push(like(responsibles.name, `%${input.search}%`));
+        if (!input.includeInactive)
+          conditions.push(eq(responsibles.status, "ACTIVE"));
+        if (input.search)
+          conditions.push(like(responsibles.name, `%${input.search}%`));
 
         const rows = await db
           .select({
@@ -110,14 +130,19 @@ export const peopleRouter = router({
               eq(familyLinks.status, "ACTIVE"),
               inArray(
                 familyLinks.responsibleId,
-                rows.map(r => r.id),
-              ),
-            ),
+                rows.map(r => r.id)
+              )
+            )
           )
           .groupBy(familyLinks.responsibleId);
 
-        const countMap = new Map(dependentCounts.map(c => [c.responsibleId, Number(c.total)]));
-        return rows.map(row => ({ ...row, dependents: countMap.get(row.id) ?? 0 }));
+        const countMap = new Map(
+          dependentCounts.map(c => [c.responsibleId, Number(c.total)])
+        );
+        return rows.map(row => ({
+          ...row,
+          dependents: countMap.get(row.id) ?? 0,
+        }));
       }),
 
     /**
@@ -129,89 +154,146 @@ export const peopleRouter = router({
         z.object({
           name: z.string().trim().min(3, "Informe o nome do responsável."),
           phone: z.string().trim().max(32).optional().nullable(),
-          email: z.string().trim().email("E-mail inválido.").optional().nullable(),
+          email: z
+            .string()
+            .trim()
+            .email("E-mail inválido.")
+            .optional()
+            .nullable(),
           notes: z.string().trim().max(1000).optional().nullable(),
           /** Quando informado, cria a conta de acesso do responsável. */
           temporaryPassword: z.string().optional().nullable(),
-        }),
+          serverId: z.number().int().positive().optional(),
+          relationshipType: z.enum(RELATIONSHIP_TYPES).default("GUARDIAN"),
+          isPrimary: z.boolean().default(false),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
         const email = input.email?.toLowerCase() ?? null;
 
         if (input.temporaryPassword && !email) {
-          throw badRequest("Para criar acesso é necessário informar um e-mail.");
+          throw badRequest(
+            "Para criar acesso é necessário informar um e-mail."
+          );
         }
 
-        let userId: number | null = null;
-
-        if (email && input.temporaryPassword) {
-          const strength = validatePasswordStrength(
-            input.temporaryPassword,
-            SECURITY.minPasswordLength,
-          );
-          if (!strength.valid) throw badRequest(strength.message!);
-
-          let [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-          if (!existing) {
-            await db.insert(users).values({
-              name: input.name,
-              email,
-              phone: input.phone ?? null,
-              passwordHash: await hashSecret(input.temporaryPassword),
-              loginMethod: "password",
-              status: "ACTIVE",
-              mustChangePassword: true,
-            });
-            [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-          }
-
-          if (existing) {
-            userId = existing.id;
-            const [membership] = await db
-              .select({ id: parishMembers.id })
-              .from(parishMembers)
+        const created = await db.transaction(async db => {
+          if (input.serverId) {
+            const [server] = await db
+              .select({ id: altarServers.id })
+              .from(altarServers)
               .where(
                 and(
-                  eq(parishMembers.parishId, ctx.parishId),
-                  eq(parishMembers.userId, existing.id),
-                  eq(parishMembers.role, "RESPONSIBLE"),
-                ),
+                  eq(altarServers.id, input.serverId),
+                  eq(altarServers.parishId, ctx.parishId)
+                )
               )
               .limit(1);
-            if (!membership) {
-              await db.insert(parishMembers).values({
-                parishId: ctx.parishId,
-                userId: existing.id,
-                role: "RESPONSIBLE",
+            if (!server) throw notFound("Servidor");
+          }
+          let userId: number | null = null;
+
+          if (email && input.temporaryPassword) {
+            const strength = validatePasswordStrength(
+              input.temporaryPassword,
+              SECURITY.minPasswordLength
+            );
+            if (!strength.valid) throw badRequest(strength.message!);
+
+            let [existing] = await db
+              .select()
+              .from(users)
+              .where(eq(users.email, email))
+              .limit(1);
+            if (!existing) {
+              await db.insert(users).values({
+                name: input.name,
+                email,
+                phone: input.phone ?? null,
+                passwordHash: await hashSecret(input.temporaryPassword),
+                loginMethod: "password",
                 status: "ACTIVE",
+                mustChangePassword: true,
               });
+              [existing] = await db
+                .select()
+                .from(users)
+                .where(eq(users.email, email))
+                .limit(1);
+            }
+
+            if (existing) {
+              userId = existing.id;
+              const [membership] = await db
+                .select({ id: parishMembers.id })
+                .from(parishMembers)
+                .where(
+                  and(
+                    eq(parishMembers.parishId, ctx.parishId),
+                    eq(parishMembers.userId, existing.id),
+                    eq(parishMembers.role, "RESPONSIBLE")
+                  )
+                )
+                .limit(1);
+              if (!membership) {
+                await db.insert(parishMembers).values({
+                  parishId: ctx.parishId,
+                  userId: existing.id,
+                  role: "RESPONSIBLE",
+                  status: "ACTIVE",
+                });
+              }
             }
           }
-        }
 
-        await db.insert(responsibles).values({
-          parishId: ctx.parishId,
-          userId,
-          name: input.name,
-          phone: input.phone ?? null,
-          email,
-          notes: input.notes ?? null,
-          status: "ACTIVE",
+          const [created] = await db
+            .insert(responsibles)
+            .values({
+              parishId: ctx.parishId,
+              userId,
+              name: input.name,
+              phone: input.phone ?? null,
+              email,
+              notes: input.notes ?? null,
+              status: "ACTIVE",
+            })
+            .returning({ id: responsibles.id });
+          if (input.serverId) {
+            if (input.isPrimary)
+              await db
+                .update(familyLinks)
+                .set({ isPrimary: false })
+                .where(
+                  and(
+                    eq(familyLinks.parishId, ctx.parishId),
+                    eq(familyLinks.serverId, input.serverId),
+                    eq(familyLinks.status, "ACTIVE")
+                  )
+                );
+            await db.insert(familyLinks).values({
+              parishId: ctx.parishId,
+              responsibleId: created.id,
+              serverId: input.serverId,
+              relationshipType: input.relationshipType,
+              isPrimary: input.isPrimary,
+              status: "ACTIVE",
+              createdByUserId:
+                ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+            });
+          }
+          return { id: created.id, hasAccount: userId !== null };
         });
-
-        const [created] = await db
-          .select({ id: responsibles.id })
-          .from(responsibles)
-          .where(eq(responsibles.parishId, ctx.parishId))
-          .orderBy(desc(responsibles.id))
-          .limit(1);
 
         await recordAudit(ctx.actor, {
           action: "RESPONSIBLE_CREATED",
           entityType: "responsible",
           entityId: created?.id ?? null,
-          metadata: { name: input.name, hasAccount: userId !== null },
+          metadata: {
+            name: input.name,
+            hasAccount: created.hasAccount,
+            serverId: input.serverId ?? null,
+          },
           ...requestMeta(ctx),
         });
 
@@ -225,10 +307,15 @@ export const peopleRouter = router({
           id: z.number().int().positive(),
           name: z.string().trim().min(3).optional(),
           phone: z.string().trim().max(32).optional().nullable(),
-          email: z.string().trim().email("E-mail inválido.").optional().nullable(),
+          email: z
+            .string()
+            .trim()
+            .email("E-mail inválido.")
+            .optional()
+            .nullable(),
           notes: z.string().trim().max(1000).optional().nullable(),
           status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -236,7 +323,12 @@ export const peopleRouter = router({
         const [existing] = await db
           .select()
           .from(responsibles)
-          .where(and(eq(responsibles.id, input.id), eq(responsibles.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(responsibles.id, input.id),
+              eq(responsibles.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Responsável");
 
@@ -245,7 +337,9 @@ export const peopleRouter = router({
           .set({
             ...(input.name !== undefined ? { name: input.name } : {}),
             ...(input.phone !== undefined ? { phone: input.phone } : {}),
-            ...(input.email !== undefined ? { email: input.email?.toLowerCase() ?? null } : {}),
+            ...(input.email !== undefined
+              ? { email: input.email?.toLowerCase() ?? null }
+              : {}),
             ...(input.notes !== undefined ? { notes: input.notes } : {}),
             ...(input.status !== undefined ? { status: input.status } : {}),
           })
@@ -280,15 +374,18 @@ export const peopleRouter = router({
             roleId: z.number().int().positive().optional(),
             includeInactive: z.boolean().default(false),
           })
-          .default({ includeInactive: false }),
+          .default({ includeInactive: false })
       )
       .query(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
 
         const conditions = [eq(altarServers.parishId, ctx.parishId)];
-        if (input.status) conditions.push(eq(altarServers.status, input.status));
-        else if (!input.includeInactive) conditions.push(sql`${altarServers.status} <> 'INACTIVE'`);
-        if (input.search) conditions.push(like(altarServers.name, `%${input.search}%`));
+        if (input.status)
+          conditions.push(eq(altarServers.status, input.status));
+        else if (!input.includeInactive)
+          conditions.push(sql`${altarServers.status} <> 'INACTIVE'`);
+        if (input.search)
+          conditions.push(like(altarServers.name, `%${input.search}%`));
 
         const rows = await db
           .select({
@@ -320,7 +417,12 @@ export const peopleRouter = router({
           })
           .from(serverRoles)
           .innerJoin(parishRoles, eq(parishRoles.id, serverRoles.parishRoleId))
-          .where(and(eq(serverRoles.parishId, ctx.parishId), inArray(serverRoles.serverId, ids)));
+          .where(
+            and(
+              eq(serverRoles.parishId, ctx.parishId),
+              inArray(serverRoles.serverId, ids)
+            )
+          );
 
         const links = await db
           .select({
@@ -331,17 +433,22 @@ export const peopleRouter = router({
             isPrimary: familyLinks.isPrimary,
           })
           .from(familyLinks)
-          .innerJoin(responsibles, eq(responsibles.id, familyLinks.responsibleId))
+          .innerJoin(
+            responsibles,
+            eq(responsibles.id, familyLinks.responsibleId)
+          )
           .where(
             and(
               eq(familyLinks.parishId, ctx.parishId),
               eq(familyLinks.status, "ACTIVE"),
-              inArray(familyLinks.serverId, ids),
-            ),
+              inArray(familyLinks.serverId, ids)
+            )
           );
 
         const result = rows.map(row => {
-          const serverQualifications = qualifications.filter(q => q.serverId === row.id);
+          const serverQualifications = qualifications.filter(
+            q => q.serverId === row.id
+          );
           const serverLinks = links.filter(l => l.serverId === row.id);
           return {
             ...row,
@@ -364,7 +471,10 @@ export const peopleRouter = router({
         // Filtro por função é aplicado após o agrupamento das habilitações.
         if (input.roleId) {
           return result.filter(server =>
-            server.roles.some(role => role.roleId === input.roleId && role.status === "QUALIFIED"),
+            server.roles.some(
+              role =>
+                role.roleId === input.roleId && role.status === "QUALIFIED"
+            )
           );
         }
 
@@ -380,7 +490,12 @@ export const peopleRouter = router({
         const [server] = await db
           .select()
           .from(altarServers)
-          .where(and(eq(altarServers.id, input.id), eq(altarServers.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(altarServers.id, input.id),
+              eq(altarServers.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!server) throw notFound("Servidor");
 
@@ -408,12 +523,22 @@ export const peopleRouter = router({
           })
           .from(serverRoles)
           .innerJoin(parishRoles, eq(parishRoles.id, serverRoles.parishRoleId))
-          .where(and(eq(serverRoles.serverId, server.id), eq(serverRoles.parishId, ctx.parishId)));
+          .where(
+            and(
+              eq(serverRoles.serverId, server.id),
+              eq(serverRoles.parishId, ctx.parishId)
+            )
+          );
 
         const serverFormations = await db
           .select()
           .from(formations)
-          .where(and(eq(formations.serverId, server.id), eq(formations.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(formations.serverId, server.id),
+              eq(formations.parishId, ctx.parishId)
+            )
+          )
           .orderBy(desc(formations.startedAt));
 
         const linkedResponsibles = await db
@@ -428,8 +553,16 @@ export const peopleRouter = router({
             status: familyLinks.status,
           })
           .from(familyLinks)
-          .innerJoin(responsibles, eq(responsibles.id, familyLinks.responsibleId))
-          .where(and(eq(familyLinks.serverId, server.id), eq(familyLinks.parishId, ctx.parishId)));
+          .innerJoin(
+            responsibles,
+            eq(responsibles.id, familyLinks.responsibleId)
+          )
+          .where(
+            and(
+              eq(familyLinks.serverId, server.id),
+              eq(familyLinks.parishId, ctx.parishId)
+            )
+          );
 
         return {
           ...server,
@@ -453,7 +586,7 @@ export const peopleRouter = router({
           relationshipType: z.enum(RELATIONSHIP_TYPES).default("GUARDIAN"),
           /** Gera o ID de acesso já na criação. O PIN é definido na ativação. */
           createAccess: z.boolean().default(true),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         assertPlausibleBirthDate(input.birthDate);
@@ -463,7 +596,7 @@ export const peopleRouter = router({
         // Menores precisam de um responsável vinculado.
         if (isMinor(input.birthDate) && !input.responsibleId) {
           throw badRequest(
-            "Servidores menores de idade precisam de um responsável vinculado no cadastro.",
+            "Servidores menores de idade precisam de um responsável vinculado no cadastro."
           );
         }
 
@@ -475,8 +608,8 @@ export const peopleRouter = router({
               and(
                 eq(responsibles.id, input.responsibleId),
                 eq(responsibles.parishId, ctx.parishId),
-                eq(responsibles.status, "ACTIVE"),
-              ),
+                eq(responsibles.status, "ACTIVE")
+              )
             )
             .limit(1);
           if (!responsible) throw notFound("Responsável");
@@ -511,7 +644,8 @@ export const peopleRouter = router({
             relationshipType: input.relationshipType,
             isPrimary: true,
             status: "ACTIVE",
-            createdByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+            createdByUserId:
+              ctx.actor.type === "USER" ? ctx.actor.user.id : null,
           });
         }
 
@@ -531,7 +665,8 @@ export const peopleRouter = router({
             parishId: ctx.parishId,
             serverId: created.id,
             purpose: "ACTIVATION",
-            issuedByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+            issuedByUserId:
+              ctx.actor.type === "USER" ? ctx.actor.user.id : null,
           });
           activationCode = issued.code;
         }
@@ -540,7 +675,11 @@ export const peopleRouter = router({
           action: "SERVER_CREATED",
           entityType: "altar_server",
           entityId: created.id,
-          metadata: { name: input.name, status: input.status, accessCreated: accessId !== null },
+          metadata: {
+            name: input.name,
+            status: input.status,
+            accessCreated: accessId !== null,
+          },
           ...requestMeta(ctx),
         });
 
@@ -557,7 +696,12 @@ export const peopleRouter = router({
         const [existing] = await db
           .select()
           .from(altarServers)
-          .where(and(eq(altarServers.id, input.id), eq(altarServers.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(altarServers.id, input.id),
+              eq(altarServers.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Servidor");
 
@@ -567,12 +711,22 @@ export const peopleRouter = router({
           .update(altarServers)
           .set({
             ...(input.name !== undefined ? { name: input.name } : {}),
-            ...(input.birthDate !== undefined ? { birthDate: input.birthDate } : {}),
-            ...(input.heightCm !== undefined ? { heightCm: input.heightCm } : {}),
-            ...(input.fatherName !== undefined ? { fatherName: input.fatherName } : {}),
-            ...(input.motherName !== undefined ? { motherName: input.motherName } : {}),
+            ...(input.birthDate !== undefined
+              ? { birthDate: input.birthDate }
+              : {}),
+            ...(input.heightCm !== undefined
+              ? { heightCm: input.heightCm }
+              : {}),
+            ...(input.fatherName !== undefined
+              ? { fatherName: input.fatherName }
+              : {}),
+            ...(input.motherName !== undefined
+              ? { motherName: input.motherName }
+              : {}),
             ...(input.notes !== undefined ? { notes: input.notes } : {}),
-            ...(input.joinedAt !== undefined ? { joinedAt: input.joinedAt } : {}),
+            ...(input.joinedAt !== undefined
+              ? { joinedAt: input.joinedAt }
+              : {}),
           })
           .where(eq(altarServers.id, input.id));
 
@@ -597,7 +751,7 @@ export const peopleRouter = router({
           id: z.number().int().positive(),
           status: z.enum(SERVER_STATUS),
           reason: z.string().trim().max(500).optional(),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -605,7 +759,12 @@ export const peopleRouter = router({
         const [existing] = await db
           .select()
           .from(altarServers)
-          .where(and(eq(altarServers.id, input.id), eq(altarServers.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(altarServers.id, input.id),
+              eq(altarServers.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!existing) throw notFound("Servidor");
 
@@ -629,7 +788,11 @@ export const peopleRouter = router({
           action: "SERVER_STATUS_CHANGED",
           entityType: "altar_server",
           entityId: input.id,
-          metadata: { from: existing.status, to: input.status, reason: input.reason ?? null },
+          metadata: {
+            from: existing.status,
+            to: input.status,
+            reason: input.reason ?? null,
+          },
           ...requestMeta(ctx),
         });
 
@@ -649,7 +812,7 @@ export const peopleRouter = router({
           serverId: z.number().int().positive(),
           relationshipType: z.enum(RELATIONSHIP_TYPES).default("GUARDIAN"),
           isPrimary: z.boolean().default(false),
-        }),
+        })
       )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
@@ -658,7 +821,10 @@ export const peopleRouter = router({
           .select({ id: responsibles.id })
           .from(responsibles)
           .where(
-            and(eq(responsibles.id, input.responsibleId), eq(responsibles.parishId, ctx.parishId)),
+            and(
+              eq(responsibles.id, input.responsibleId),
+              eq(responsibles.parishId, ctx.parishId)
+            )
           )
           .limit(1);
         if (!responsible) throw notFound("Responsável");
@@ -666,7 +832,12 @@ export const peopleRouter = router({
         const [server] = await db
           .select({ id: altarServers.id })
           .from(altarServers)
-          .where(and(eq(altarServers.id, input.serverId), eq(altarServers.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(altarServers.id, input.serverId),
+              eq(altarServers.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!server) throw notFound("Servidor");
 
@@ -676,8 +847,8 @@ export const peopleRouter = router({
           .where(
             and(
               eq(familyLinks.responsibleId, input.responsibleId),
-              eq(familyLinks.serverId, input.serverId),
-            ),
+              eq(familyLinks.serverId, input.serverId)
+            )
           )
           .limit(1);
 
@@ -694,8 +865,8 @@ export const peopleRouter = router({
               and(
                 eq(familyLinks.parishId, ctx.parishId),
                 eq(familyLinks.serverId, input.serverId),
-                eq(familyLinks.status, "ACTIVE"),
-              ),
+                eq(familyLinks.status, "ACTIVE")
+              )
             );
         }
 
@@ -718,7 +889,8 @@ export const peopleRouter = router({
             relationshipType: input.relationshipType,
             isPrimary: input.isPrimary,
             status: "ACTIVE",
-            createdByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+            createdByUserId:
+              ctx.actor.type === "USER" ? ctx.actor.user.id : null,
           });
         }
 
@@ -726,7 +898,10 @@ export const peopleRouter = router({
           action: "FAMILY_LINK_CREATED",
           entityType: "family_link",
           entityId: input.serverId,
-          metadata: { responsibleId: input.responsibleId, isPrimary: input.isPrimary },
+          metadata: {
+            responsibleId: input.responsibleId,
+            isPrimary: input.isPrimary,
+          },
           ...requestMeta(ctx),
         });
 
@@ -742,7 +917,12 @@ export const peopleRouter = router({
         const [link] = await db
           .select()
           .from(familyLinks)
-          .where(and(eq(familyLinks.id, input.linkId), eq(familyLinks.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(familyLinks.id, input.linkId),
+              eq(familyLinks.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!link) throw notFound("Vínculo");
 
@@ -761,12 +941,12 @@ export const peopleRouter = router({
               and(
                 eq(familyLinks.parishId, ctx.parishId),
                 eq(familyLinks.serverId, link.serverId),
-                eq(familyLinks.status, "ACTIVE"),
-              ),
+                eq(familyLinks.status, "ACTIVE")
+              )
             );
           if (Number(total) <= 1) {
             throw badRequest(
-              "Servidores menores de idade precisam de pelo menos um responsável ativo. Vincule outro responsável antes de encerrar este vínculo.",
+              "Servidores menores de idade precisam de pelo menos um responsável ativo. Vincule outro responsável antes de encerrar este vínculo."
             );
           }
         }
@@ -803,13 +983,24 @@ export const peopleRouter = router({
         const db = await getDbOrThrow();
 
         const [server] = await db
-          .select({ id: altarServers.id, name: altarServers.name, status: altarServers.status })
+          .select({
+            id: altarServers.id,
+            name: altarServers.name,
+            status: altarServers.status,
+          })
           .from(altarServers)
-          .where(and(eq(altarServers.id, input.serverId), eq(altarServers.parishId, ctx.parishId)))
+          .where(
+            and(
+              eq(altarServers.id, input.serverId),
+              eq(altarServers.parishId, ctx.parishId)
+            )
+          )
           .limit(1);
         if (!server) throw notFound("Servidor");
         if (server.status === "INACTIVE") {
-          throw badRequest("Não é possível criar acesso para um servidor inativo.");
+          throw badRequest(
+            "Não é possível criar acesso para um servidor inativo."
+          );
         }
 
         const [existing] = await db
@@ -817,7 +1008,8 @@ export const peopleRouter = router({
           .from(serverAccess)
           .where(eq(serverAccess.serverId, server.id))
           .limit(1);
-        if (existing) throw badRequest("Este servidor já possui credencial de acesso.");
+        if (existing)
+          throw badRequest("Este servidor já possui credencial de acesso.");
 
         const accessId = await generateUniqueAccessId(ctx.parishId);
         await db.insert(serverAccess).values({
@@ -842,7 +1034,11 @@ export const peopleRouter = router({
           ...requestMeta(ctx),
         });
 
-        return { accessId, activationCode: issued.code, expiresAt: issued.expiresAt } as const;
+        return {
+          accessId,
+          activationCode: issued.code,
+          expiresAt: issued.expiresAt,
+        } as const;
       }),
 
     /**
@@ -859,7 +1055,10 @@ export const peopleRouter = router({
           .from(serverAccess)
           .innerJoin(altarServers, eq(altarServers.id, serverAccess.serverId))
           .where(
-            and(eq(serverAccess.serverId, input.serverId), eq(serverAccess.parishId, ctx.parishId)),
+            and(
+              eq(serverAccess.serverId, input.serverId),
+              eq(serverAccess.parishId, ctx.parishId)
+            )
           )
           .limit(1);
         if (!row) throw notFound("Acesso do servidor");
@@ -873,7 +1072,11 @@ export const peopleRouter = router({
 
         await db
           .update(serverAccess)
-          .set({ pinResetRequested: true, failedAttempts: 0, lockedUntil: null })
+          .set({
+            pinResetRequested: true,
+            failedAttempts: 0,
+            lockedUntil: null,
+          })
           .where(eq(serverAccess.id, row.access.id));
 
         await recordAudit(ctx.actor, {
@@ -894,7 +1097,12 @@ export const peopleRouter = router({
 
     /** Bloqueia ou desbloqueia o acesso de um servidor. */
     setBlocked: coordinatorProcedure
-      .input(z.object({ serverId: z.number().int().positive(), blocked: z.boolean() }))
+      .input(
+        z.object({
+          serverId: z.number().int().positive(),
+          blocked: z.boolean(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const db = await getDbOrThrow();
 
@@ -902,7 +1110,10 @@ export const peopleRouter = router({
           .select()
           .from(serverAccess)
           .where(
-            and(eq(serverAccess.serverId, input.serverId), eq(serverAccess.parishId, ctx.parishId)),
+            and(
+              eq(serverAccess.serverId, input.serverId),
+              eq(serverAccess.parishId, ctx.parishId)
+            )
           )
           .limit(1);
         if (!access) throw notFound("Acesso do servidor");
@@ -924,7 +1135,9 @@ export const peopleRouter = router({
         }
 
         await recordAudit(ctx.actor, {
-          action: input.blocked ? "SERVER_ACCESS_BLOCKED" : "SERVER_ACCESS_UNBLOCKED",
+          action: input.blocked
+            ? "SERVER_ACCESS_BLOCKED"
+            : "SERVER_ACCESS_UNBLOCKED",
           entityType: "server_access",
           entityId: input.serverId,
           metadata: { accessId: access.accessId },
@@ -959,8 +1172,8 @@ export const peopleRouter = router({
         and(
           eq(familyLinks.parishId, ctx.parishId),
           eq(familyLinks.responsibleId, ctx.responsibleId),
-          eq(familyLinks.status, "ACTIVE"),
-        ),
+          eq(familyLinks.status, "ACTIVE")
+        )
       )
       .orderBy(altarServers.name);
 

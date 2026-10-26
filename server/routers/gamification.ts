@@ -8,6 +8,7 @@
 import { POINT_EVENT_TYPES } from "@shared/domain";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
+import { calendarDateSchema } from "@shared/validation";
 
 import {
   achievements,
@@ -487,16 +488,8 @@ export const gamificationRouter = router({
     .input(
       z
         .object({
-          periodStart: z
-            .string()
-            .regex(/^\d{4}-\d{2}-\d{2}$/)
-            .optional()
-            .nullable(),
-          periodEnd: z
-            .string()
-            .regex(/^\d{4}-\d{2}-\d{2}$/)
-            .optional()
-            .nullable(),
+          periodStart: calendarDateSchema.optional().nullable(),
+          periodEnd: calendarDateSchema.optional().nullable(),
           limit: z.number().int().min(1).max(100).default(20),
         })
         .optional()

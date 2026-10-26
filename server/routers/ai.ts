@@ -8,6 +8,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
+import { calendarDateSchema } from "@shared/validation";
 
 import {
   aiProposalConflicts,
@@ -48,8 +49,8 @@ export const aiRouter = router({
   generate: coordinatorProcedure
     .input(
       z.object({
-        periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        periodStart: calendarDateSchema,
+        periodEnd: calendarDateSchema,
         priorityMode: z.enum(AI_PRIORITY_MODES).default("BALANCED"),
         pinnedAssignments: z
           .array(

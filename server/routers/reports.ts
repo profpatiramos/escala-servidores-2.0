@@ -7,6 +7,7 @@
  */
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod";
+import { calendarDateSchema } from "@shared/validation";
 
 import {
   altarServers,
@@ -24,8 +25,8 @@ import { recordAudit } from "../services/audit";
 import { coordinatorProcedure, requestMeta, router } from "../trpc";
 
 const periodInput = z.object({
-  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  periodStart: calendarDateSchema,
+  periodEnd: calendarDateSchema,
 });
 
 export const reportsRouter = router({
@@ -273,8 +274,8 @@ export const reportsRouter = router({
       z.object({
         action: z.string().max(80).optional(),
         entityType: z.string().max(60).optional(),
-        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        from: calendarDateSchema.optional(),
+        to: calendarDateSchema.optional(),
         limit: z.number().int().min(1).max(200).default(100),
       }),
     )
