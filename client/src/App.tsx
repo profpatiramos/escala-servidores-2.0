@@ -1,3 +1,4 @@
+import { InstallAppProvider } from "@/components/InstallApp";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -196,7 +197,7 @@ function App() {
         <TooltipProvider>
           <SessionProvider>
             <Toaster />
-            <Router />
+            <InstallAppProvider><Router /></InstallAppProvider>
           </SessionProvider>
         </TooltipProvider>
       </ThemeProvider>

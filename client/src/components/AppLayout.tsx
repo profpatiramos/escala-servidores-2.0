@@ -1,3 +1,4 @@
+import { InstallAppButton } from "@/components/InstallApp";
 /**
  * Layout autenticado da aplicação.
  *
@@ -404,6 +405,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </p>
           </div>
 
+          <InstallAppButton compact />
           <Link
             href="/notificacoes"
             className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"

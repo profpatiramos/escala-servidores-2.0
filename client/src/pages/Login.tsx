@@ -1,3 +1,4 @@
+import { InstallAppButton } from "@/components/InstallApp";
 /**
  * Tela de acesso.
  *
@@ -307,6 +308,7 @@ export default function Login() {
               </CardContent>
             </Card>
 
+            <div className="flex justify-center"><InstallAppButton /></div>
             <p className="text-center text-xs text-muted-foreground">
               Primeiro acesso de servidor?{" "}
               <a
