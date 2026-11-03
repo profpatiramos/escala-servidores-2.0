@@ -48,6 +48,18 @@ export default function MonthlySchedule() {
     monthNumber >= 1 &&
     monthNumber <= 12;
   const plan = validMonth ? monthlyPlan(year, monthNumber, config.fifth) : [];
+  const [colorReview, setColorReview] = useState<{ month: string; rows: { id: number; date: string; time: string; before: string; after: string }[] } | null>(null);
+  const reviewColors = trpc.monthlySchedule.reviewColors.useMutation({
+    onSuccess: async (rows, input) => {
+      const reviewedMonth = `${input.year}-${String(input.month).padStart(2, "0")}`;
+      if (input.ids) {
+        await utils.schedules.invalidate();
+        setColorReview(null);
+        toast.success(`${rows.length} etiquetas atualizadas. As alocações foram mantidas.`);
+      } else setColorReview({ month: reviewedMonth, rows });
+    },
+    onError: error => toast.error(errorMessage(error)),
+  });
   const save = trpc.monthlySchedule.save.useMutation({
     onSuccess: async () => {
       await utils.monthlySchedule.config.invalidate();
@@ -228,6 +240,21 @@ export default function MonthlySchedule() {
     );
   return (
     <div className="space-y-6">
+      <Card>
+        <CardContent className="space-y-3 p-4">
+          <h2 className="font-semibold">Revisar cores de celebrações salvas</h2>
+          <p className="text-sm text-muted-foreground">Compara as etiquetas do mês selecionado ({month}) com o rodízio. As alocações dos servidores não são alteradas.</p>
+          <Button variant="outline" disabled={!validMonth || reviewColors.isPending} onClick={() => reviewColors.mutate({ year, month: monthNumber })}>Conferir etiquetas</Button>
+          {colorReview?.month === month && (colorReview.rows.length ? (
+            <>
+              <ul className="space-y-1 text-sm">
+                {colorReview.rows.map(row => <li key={row.id}>{formatDate(row.date)} às {row.time}: {row.before} → {row.after}</li>)}
+              </ul>
+              <Button disabled={reviewColors.isPending} onClick={() => reviewColors.mutate({ year, month: monthNumber, ids: colorReview.rows.map(row => row.id) })}>Corrigir {colorReview.rows.length} etiquetas</Button>
+            </>
+          ) : <p className="text-sm">Nenhuma etiqueta da Escala Mensal precisa de correção neste mês.</p>)}
+        </CardContent>
+      </Card>
       <header>
         <h1 className="text-2xl font-semibold">Escala mensal</h1>
         <p className="text-sm text-muted-foreground">

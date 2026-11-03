@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { reconcileMonthlyTeamLabel } from "../../shared/monthlyTeamLabels";
 import {
   altarServers,
   celebrations,
@@ -19,6 +20,38 @@ import { recordAudit } from "../services/audit";
 import { ensureUnassignedRole } from "../services/unassignedRole";
 
 export const monthlyScheduleRouter = router({
+  reviewColors: coordinatorProcedure
+    .input(z.object({ year: z.number().int().min(2020).max(2100), month: z.number().int().min(1).max(12), ids: z.array(z.number().int().positive()).max(30).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDbOrThrow();
+      const [parish] = await db.select({ settings: parishes.settings }).from(parishes).where(eq(parishes.id, ctx.parishId)).limit(1);
+      const settings = parish?.settings as Record<string, unknown> | null;
+      const config = monthlyConfigSchema.safeParse(settings?.monthlySchedule);
+      const plan = monthlyPlan(input.year, input.month, config.success ? config.data.fifth : "MANUAL");
+      const expected = new Map(plan.map(item => [`${item.date}/${item.slot.startTime}`, item.color]));
+      const rows = await db.select({ id: celebrations.id, date: celebrations.date, time: celebrations.startTime, notes: celebrations.notes })
+        .from(celebrations).where(and(eq(celebrations.parishId, ctx.parishId), inArray(celebrations.date, [...new Set(plan.map(item => item.date))])));
+      const ids = input.ids;
+      const changes = rows.flatMap(row => {
+        const time = row.time.slice(0, 5);
+        const color = expected.get(`${row.date}/${time}`);
+        if (color === undefined || (ids && !ids.includes(row.id))) return [];
+        const change = reconcileMonthlyTeamLabel(row.notes, color);
+        return change && row.notes !== null ? [{ id: row.id, date: row.date, time, before: change.before, after: change.after, oldNotes: row.notes, notes: change.notes }] : [];
+      }).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+      if (ids) {
+        await db.transaction(async tx => {
+          for (const change of changes) {
+            const [saved] = await tx.update(celebrations).set({ notes: change.notes })
+              .where(and(eq(celebrations.parishId, ctx.parishId), eq(celebrations.id, change.id), eq(celebrations.notes, change.oldNotes)))
+              .returning({ id: celebrations.id });
+            if (!saved) throw badRequest("Uma celebração mudou durante a revisão. Atualize a lista e tente novamente.");
+          }
+        });
+        if (changes.length) await recordAudit(ctx.actor, { action: "CELEBRATION_UPDATED", entityType: "celebration", entityId: null, metadata: { teamColors: changes.map(({id, before, after}) => ({id, before, after})) } });
+      }
+      return changes.map(({ id, date, time, before, after }) => ({ id, date, time, before, after }));
+    }),
   config: coordinatorProcedure.query(async ({ ctx }) => {
     const db = await getDbOrThrow();
     const [parish] = await db
