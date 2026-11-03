@@ -93,13 +93,13 @@ export function monthlyPlan(
     occurrence: number;
     color: "GREEN" | "BLUE" | null;
   }[] = [];
-  const counts = new Map<number, number>();
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
   for (let day = 1; day <= lastDay; day++) {
     const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
     if (weekday !== 0 && weekday !== 6) continue;
-    const occurrence = (counts.get(weekday) ?? 0) + 1;
-    counts.set(weekday, occurrence);
+    // O sábado determina a posição do fim de semana, mesmo na virada do mês.
+    const saturday = new Date(Date.UTC(year, month - 1, day - (weekday === 0 ? 1 : 0)));
+    const occurrence = Math.ceil(saturday.getUTCDate() / 7);
     const date = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     for (const slot of MONTHLY_SLOTS.filter(s => s.weekday === weekday)) {
       const color =

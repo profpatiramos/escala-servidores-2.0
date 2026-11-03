@@ -31,14 +31,27 @@ describe("escala mensal", () => {
       "BLUE",
     ]);
   });
-  it("conta o quinto domingo independentemente do quinto sábado", () => {
+  it("mantém o quinto fim de semana unido na virada de outubro para novembro", () => {
+    const october = monthlyPlan(2026, 10, "MANUAL");
+    const november = monthlyPlan(2026, 11, "MANUAL");
+    const crossing = [...october, ...november].filter(p =>
+      ["2026-10-31", "2026-11-01"].includes(p.date)
+    );
+    expect(crossing).toHaveLength(4);
+    expect(crossing.every(p => p.occurrence === 5 && p.color === null)).toBe(true);
+    const first = november.filter(p => ["2026-11-07", "2026-11-08"].includes(p.date));
+    expect(first).toHaveLength(4);
+    expect(first.every(p => p.occurrence === 1 && p.color === "GREEN")).toBe(true);
+  });
+
+  it("aplica a equipe do quinto fim de semana sem deslocar o rodízio de novembro", () => {
     const plan = monthlyPlan(2026, 11, "BLUE");
-    expect(plan.filter(p => p.date === "2026-11-29")).toHaveLength(3);
+    expect(plan.filter(p => p.date === "2026-11-01")).toHaveLength(3);
     expect(
-      plan.filter(p => p.date === "2026-11-29").every(p => p.color === "BLUE")
+      plan.filter(p => p.date === "2026-11-01").every(p => p.color === "BLUE")
     ).toBe(true);
     expect(
-      plan.filter(p => p.date === "2026-11-28").every(p => p.occurrence === 4)
+      plan.filter(p => ["2026-11-28", "2026-11-29"].includes(p.date)).every(p => p.occurrence === 4)
     ).toBe(true);
   });
   it("trata fevereiro bissexto e recusa mês inválido", () => {
