@@ -41,14 +41,18 @@ import {
 } from "@shared/domain";
 import { Link } from "wouter";
 import ResponsibleDependents from "@/components/ResponsibleDependents";
+import { useSession } from "@/contexts/SessionContext";
 
 export default function Responsibles() {
+  const { session } = useSession();
+  const canManageCoordination =
+    session?.role === "PARISH_ADMIN" || session?.role === "SUPER_ADMIN";
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const list = trpc.people.responsibles.list.useQuery({
     includeInactive: false,
   });
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => new URLSearchParams(window.location.search).get("novo") === "1");
   const [loginTarget, setLoginTarget] = useState<{
     id: number;
     name: string;
@@ -57,6 +61,25 @@ export default function Responsibles() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginConfirmation, setLoginConfirmation] = useState("");
+  const [loginCoordinator, setLoginCoordinator] = useState(false);
+  const [newCoordinator, setNewCoordinator] = useState(false);
+  const [coordinationTarget, setCoordinationTarget] = useState<{
+    id: number;
+    name: string;
+    enabled: boolean;
+  } | null>(null);
+  const setCoordination = trpc.people.responsibles.setCoordination.useMutation({
+    onSuccess: () => {
+      void utils.people.responsibles.list.invalidate();
+      void utils.parishes.members.invalidate();
+      void utils.access.session.invalidate();
+      setCoordinationTarget(null);
+      toast.success(
+        "Acesso à coordenação atualizado. Os vínculos com dependentes foram mantidos."
+      );
+    },
+    onError: error => toast.error(errorMessage(error)),
+  });
   const enableLogin = trpc.people.responsibles.enableLogin.useMutation({
     onSuccess: () => {
       void utils.people.responsibles.list.invalidate();
@@ -64,6 +87,7 @@ export default function Responsibles() {
       setLoginEmail("");
       setLoginPassword("");
       setLoginConfirmation("");
+      void utils.parishes.members.invalidate();
       toast.success(
         "Login habilitado. O responsável deve trocar a senha provisória no primeiro acesso."
       );
@@ -84,7 +108,7 @@ export default function Responsibles() {
   const [primary, setPrimary] = useState(false);
   const servers = trpc.people.servers.list.useQuery(
     { includeInactive: false },
-    { enabled: selected !== null || open }
+    { enabled: selected !== null || open, refetchOnWindowFocus: "always" }
   );
   const createLink = trpc.people.familyLinks.create.useMutation({
     onSuccess: () => {
@@ -162,6 +186,7 @@ export default function Responsibles() {
           className="gap-2"
           onClick={() => {
             setEditingId(null);
+            setNewCoordinator(false);
             setForm({
               name: "",
               phone: "",
@@ -268,10 +293,19 @@ export default function Responsibles() {
                       <p className="break-all">{row.email || "Sem e-mail"}</p>
                     </TableCell>
                     <TableCell>
+                      {row.coordinator && (
+                        <Badge variant="secondary" className="mb-1 mr-1">
+                          Também coordena
+                        </Badge>
+                      )}
                       <span className="mr-1 text-muted-foreground md:hidden">
                         Dependentes:
                       </span>
-                      <ResponsibleDependents id={row.id} name={row.name} count={row.dependents}/>
+                      <ResponsibleDependents
+                        id={row.id}
+                        name={row.name}
+                        count={row.dependents}
+                      />
                     </TableCell>
                     <TableCell>
                       {row.userId ? (
@@ -295,10 +329,27 @@ export default function Responsibles() {
                             setLoginEmail(row.email ?? "");
                             setLoginPassword("");
                             setLoginConfirmation("");
+                            setLoginCoordinator(false);
                           }}
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                           Habilitar login
+                          <span className="sr-only"> de {row.name}</span>
+                        </Button>
+                      )}
+                      {canManageCoordination && row.userId && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setCoordinationTarget({
+                              id: row.id,
+                              name: row.name,
+                              enabled: row.coordinator,
+                            })
+                          }
+                        >
+                          Acesso à coordenação
                           <span className="sr-only"> de {row.name}</span>
                         </Button>
                       )}
@@ -368,6 +419,7 @@ export default function Responsibles() {
                   id: loginTarget.id,
                   email: loginEmail.trim(),
                   temporaryPassword: loginPassword,
+                  coordinator: canManageCoordination && loginCoordinator,
                 });
             }}
           >
@@ -418,6 +470,25 @@ export default function Responsibles() {
                 </p>
               )}
             </div>
+            {canManageCoordination && (
+              <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={loginCoordinator}
+                  disabled={enableLogin.isPending}
+                  onChange={e => setLoginCoordinator(e.target.checked)}
+                />
+                <span>
+                  <span className="font-medium">
+                    Também atua na coordenação
+                  </span>
+                  <span className="mt-1 block text-muted-foreground">
+                    Usa este mesmo login para gerenciar escalas, cadastros,
+                    presenças e substituições. Mantém os dependentes vinculados.
+                  </span>
+                </span>
+              </label>
+            )}
             <p className="rounded-lg bg-muted p-3 text-sm">
               Entregue os dados ao responsável. Ele entra com e-mail e senha em
               /acesso e troca a senha no primeiro login. Esta ação não envia
@@ -456,6 +527,68 @@ export default function Responsibles() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={coordinationTarget !== null}
+        onOpenChange={value => {
+          if (!value && !setCoordination.isPending) setCoordinationTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Acesso à coordenação</DialogTitle>
+            <DialogDescription>
+              {coordinationTarget?.name} mantém o mesmo login e os dependentes
+              vinculados.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={coordinationTarget?.enabled ?? false}
+              disabled={setCoordination.isPending}
+              onChange={e =>
+                setCoordinationTarget(
+                  target => target && { ...target, enabled: e.target.checked }
+                )
+              }
+            />
+            <span>
+              <span className="font-medium">Também atua na coordenação</span>
+              <span className="mt-1 block text-muted-foreground">
+                Concede as mesmas funções operacionais de Coordenador:
+                cadastros, montagem e publicação de escalas, validação de
+                presenças, substituições e reconhecimento.
+              </span>
+            </span>
+          </label>
+          <p className="text-sm text-muted-foreground">
+            Ao desmarcar, apenas o vínculo de coordenação é desativado. O acesso
+            de responsável e os demais papéis são preservados.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={setCoordination.isPending}
+              onClick={() => setCoordinationTarget(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={setCoordination.isPending}
+              onClick={() =>
+                coordinationTarget &&
+                setCoordination.mutate({
+                  id: coordinationTarget.id,
+                  enabled: coordinationTarget.enabled,
+                })
+              }
+            >
+              Salvar acesso
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -668,6 +801,25 @@ export default function Responsibles() {
                 </p>
               </div>
             )}
+            {!editingId && canManageCoordination && (
+              <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={newCoordinator}
+                  disabled={saving}
+                  onChange={e => setNewCoordinator(e.target.checked)}
+                />
+                <span>
+                  <span className="font-medium">
+                    Também atua na coordenação
+                  </span>
+                  <span className="mt-1 block text-muted-foreground">
+                    Informe e-mail e senha provisória para habilitar esse acesso
+                    com o mesmo cadastro e os mesmos dependentes.
+                  </span>
+                </span>
+              </label>
+            )}
             {!editingId && (
               <div className="space-y-3 rounded-md border p-3">
                 <Label htmlFor="resp-server">
@@ -691,6 +843,8 @@ export default function Responsibles() {
                     </option>
                   ))}
                 </select>
+                <a href="/servidores?novo=1" target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-primary underline">Cadastrar servidor em nova aba</a>
+                <Button type="button" variant="ghost" size="sm" onClick={() => void servers.refetch()}>Atualizar lista de servidores</Button>
                 {servers.isError && (
                   <p role="alert" className="text-sm text-destructive">
                     Não foi possível carregar os servidores.{" "}
@@ -769,7 +923,13 @@ export default function Responsibles() {
             </Button>
             <Button
               className="gap-2"
-              disabled={saving || form.name.trim().length < 3}
+              disabled={
+                saving ||
+                form.name.trim().length < 3 ||
+                (!editingId &&
+                  newCoordinator &&
+                  (!form.email.trim() || !form.temporaryPassword))
+              }
               onClick={() => {
                 const data = {
                   name: form.name.trim(),
@@ -782,6 +942,7 @@ export default function Responsibles() {
                   create.mutate({
                     ...data,
                     temporaryPassword: form.temporaryPassword || null,
+                    coordinator: canManageCoordination && newCoordinator,
                     serverId: initialServer ? Number(initialServer) : undefined,
                     relationshipType: initialRelationship,
                     isPrimary: initialPrimary,

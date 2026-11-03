@@ -120,7 +120,7 @@ export const platformAdminProcedure = authedProcedure.use(({ ctx, next }) => {
 });
 
 /** Procedure para o responsável autenticado. */
-export const responsibleProcedure = roleProcedure("RESPONSIBLE").use(
+export const responsibleProcedure = roleProcedure("RESPONSIBLE", "COORDINATOR", "PARISH_ADMIN", "PRIEST").use(
   ({ ctx, next }) => {
     const actor = ctx.actor as UserActor;
     if (!actor.responsibleId) {

@@ -457,6 +457,7 @@ function formatDate(value: string): string {
  * manual e pelo assistente de IA.
  */
 export async function listEligibleServers(params: {
+  includeBlocked?: boolean;
   parishId: number;
   celebrationId: number;
   parishRoleId: number;
@@ -467,6 +468,7 @@ export async function listEligibleServers(params: {
     age: number;
     preferenceScore: number;
     recentAssignments: number;
+    blockedReason: string | null;
   }>
 > {
   const db = await getDbOrThrow();
@@ -499,6 +501,7 @@ export async function listEligibleServers(params: {
       name: altarServers.name,
       birthDate: altarServers.birthDate,
       qualificationStatus: serverRoles.qualificationStatus,
+      validUntil: serverRoles.validUntil,
     })
     .from(altarServers)
     .leftJoin(
@@ -510,14 +513,17 @@ export async function listEligibleServers(params: {
     )
     .where(and(eq(altarServers.parishId, params.parishId), ne(altarServers.status, "INACTIVE")));
 
-  const eligible = candidates.filter(candidate => {
-    if (role.requiresQualification && candidate.qualificationStatus !== "QUALIFIED") return false;
-    if (role.minAge !== null) {
-      const age = calculateAge(candidate.birthDate, new Date(`${celebration.date}T12:00:00`));
-      if (age < role.minAge) return false;
-    }
-    return true;
-  });
+  const eligible = candidates.map(candidate => {
+    const age = calculateAge(candidate.birthDate, new Date(`${celebration.date}T12:00:00`));
+    const blockedReason = role.requiresQualification && candidate.qualificationStatus !== "QUALIFIED"
+      ? "Sem habilitação para esta função."
+      : role.requiresQualification && candidate.validUntil && candidate.validUntil < celebration.date
+        ? "Habilitação vencida."
+        : role.minAge !== null && age < role.minAge
+          ? "Não atende à idade mínima da função."
+          : null;
+    return { ...candidate, blockedReason };
+  }).filter(candidate => params.includeBlocked || !candidate.blockedReason);
 
   if (eligible.length === 0) return [];
 
@@ -554,16 +560,18 @@ export async function listEligibleServers(params: {
   const { scorePreferences } = await import("./availability");
 
   const available = eligible
-    .filter(candidate => {
+    .map(candidate => {
       const verdict = evaluateAvailability(availabilityContext, {
         serverId: candidate.id,
         date: celebration.date,
         startTime: celebration.startTime,
         endTime: celebration.endTime,
       });
-      return verdict.available;
+      return { ...candidate, blockedReason: candidate.blockedReason ?? (verdict.available ? null : verdict.detail ?? "Indisponível neste horário.") };
     })
+    .filter(candidate => params.includeBlocked || !candidate.blockedReason)
     .map(candidate => ({
+      blockedReason: candidate.blockedReason,
       serverId: candidate.id,
       name: candidate.name,
       age: calculateAge(candidate.birthDate, new Date(`${celebration.date}T12:00:00`)),

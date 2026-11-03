@@ -110,7 +110,7 @@ export async function resolveUserScope(userId: number): Promise<{
     priority.map(role => active.find(m => m.role === role)).find(Boolean) ?? active[0]!;
 
   let responsibleId: number | null = null;
-  if (chosen.role === "RESPONSIBLE") {
+  if (active.some(m => m.parishId === chosen.parishId && m.role === "RESPONSIBLE")) {
     const [responsibleRow] = await db
       .select({ id: responsibles.id })
       .from(responsibles)

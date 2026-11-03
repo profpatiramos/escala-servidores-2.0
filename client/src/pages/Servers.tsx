@@ -67,13 +67,13 @@ export default function Servers() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [includeInactive, setIncludeInactive] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(() => new URLSearchParams(window.location.search).get("novo") === "1");
   const [responsibleId, setResponsibleId] = useState("");
   const [relationshipType, setRelationshipType] =
     useState<RelationshipType>("GUARDIAN");
   const responsibles = trpc.people.responsibles.list.useQuery(
     { includeInactive: false },
-    { enabled: createOpen }
+    { enabled: createOpen, refetchOnWindowFocus: "always" }
   );
   const [codeDialog, setCodeDialog] = useState<{
     name: string;
@@ -406,9 +406,9 @@ export default function Servers() {
                 <p className="text-sm text-muted-foreground">
                   Escolha o responsável já cadastrado. Se ainda não existe,
                   cadastre-o primeiro em{" "}
-                  <Link href="/responsaveis" className="text-primary underline">
-                    Responsáveis
-                  </Link>
+                  <a href="/responsaveis?novo=1" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                    Cadastrar responsável em nova aba
+                  </a>
                   , sem selecionar um servidor.
                 </p>
               )}

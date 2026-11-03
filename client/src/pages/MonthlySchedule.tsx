@@ -188,13 +188,13 @@ export default function MonthlySchedule() {
         const foundRoles = (roles.data ?? []).filter(
           r => normalize(r.name) === role
         );
-        if (!team || foundServers.length !== 1 || foundRoles.length !== 1)
+        if (!team || foundServers.length !== 1 || (role && foundRoles.length !== 1))
           throw new Error(
             `Linha ${index}: confira equipe, celebração, servidor e função. Nomes precisam corresponder a um único cadastro.`
           );
         team.members.push({
           serverId: foundServers[0].id,
-          parishRoleId: foundRoles[0].id,
+          parishRoleId: foundRoles[0]?.id ?? 0,
         });
         count++;
       });
@@ -314,7 +314,7 @@ export default function MonthlySchedule() {
                         )
                       }
                     >
-                      <option value="">Função</option>
+                      <option value="">Não definida</option>
                       {roles.data?.map(r => (
                         <option key={r.id} value={r.id}>
                           {r.name}

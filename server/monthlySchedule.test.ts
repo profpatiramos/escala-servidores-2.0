@@ -6,6 +6,13 @@ import {
 } from "../shared/monthlySchedule";
 
 describe("escala mensal", () => {
+  it("permite equipe sem função definida, mas exige servidor válido", () => {
+    const config = emptyMonthlyConfig();
+    config.teams[0].members = [{ serverId: 4, parishRoleId: 0 }];
+    expect(monthlyConfigSchema.safeParse(config).success).toBe(true);
+    config.teams[0].members[0].serverId = 0;
+    expect(monthlyConfigSchema.safeParse(config).success).toBe(false);
+  });
   it("reproduz o rodízio de outubro de 2026 sem incluir novembro", () => {
     const plan = monthlyPlan(2026, 10, "MANUAL");
     expect(plan).toHaveLength(17);

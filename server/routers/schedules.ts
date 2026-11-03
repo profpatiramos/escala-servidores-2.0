@@ -14,7 +14,7 @@ import {
   SCHEDULE_STATUS,
   type ScheduleStatus,
 } from "@shared/domain";
-import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { calendarDateSchema } from "@shared/validation";
 
@@ -42,6 +42,8 @@ import {
   requestMeta,
   router,
 } from "../trpc";
+
+import { ensureUnassignedRole } from "../services/unassignedRole";
 
 const dateSchema = calendarDateSchema;
 const timeSchema = z
@@ -101,6 +103,7 @@ export const schedulesRouter = router({
             status: celebrations.status,
             scheduleId: schedules.id,
             scheduleStatus: schedules.status,
+            notes: celebrations.notes,
           })
           .from(celebrations)
           .leftJoin(schedules, eq(schedules.celebrationId, celebrations.id))
@@ -145,7 +148,8 @@ export const schedulesRouter = router({
             )
           );
 
-        return rows.map(row => {
+        return rows.map(({ notes, ...row }) => {
+          const teamColor = notes?.match(/^Escala mensal\. Equipe (verde|azul)\./i)?.[1].toLowerCase() ?? null;
           const celebrationNeeds = needs.filter(
             n => n.celebrationId === row.id
           );
@@ -158,6 +162,7 @@ export const schedulesRouter = router({
           );
           return {
             ...row,
+            teamColor,
             needs: celebrationNeeds.map(n => ({
               parishRoleId: n.parishRoleId,
               roleName: n.roleName,
@@ -497,6 +502,17 @@ export const schedulesRouter = router({
         return { success: true, revalidation, version: newVersion } as const;
       }),
 
+    addUnassignedSlot: coordinatorProcedure
+      .input(z.object({ celebrationId: z.number().int().positive() }))
+      .mutation(async ({ctx,input}) => {
+        const db = await getDbOrThrow();
+        const [celebration] = await db.select({id: celebrations.id}).from(celebrations).where(and(eq(celebrations.id,input.celebrationId),eq(celebrations.parishId,ctx.parishId))).limit(1);
+        if (!celebration) throw notFound("Celebração");
+        const parishRoleId = await ensureUnassignedRole(ctx.parishId);
+        await db.insert(celebrationRoleNeeds).values({parishId:ctx.parishId,celebrationId:input.celebrationId,parishRoleId,quantity:1}).onConflictDoNothing();
+        return { parishRoleId };
+      }),
+
     /** Define as necessidades de função da celebração, substituindo as anteriores. */
     setNeeds: coordinatorProcedure
       .input(
@@ -745,6 +761,7 @@ export const schedulesRouter = router({
     )
     .query(async ({ ctx, input }) =>
       listEligibleServers({
+        includeBlocked: true,
         parishId: ctx.parishId,
         celebrationId: input.celebrationId,
         parishRoleId: input.parishRoleId,
@@ -806,34 +823,40 @@ export const schedulesRouter = router({
         return { saved: false, validation } as const;
       }
 
-      // Alocações anteriores são canceladas, não apagadas.
-      await db
-        .update(scheduleAssignments)
-        .set({ status: "CANCELLED" })
-        .where(
-          and(
-            eq(scheduleAssignments.scheduleId, schedule.id),
-            eq(scheduleAssignments.parishId, ctx.parishId),
-            inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"])
-          )
-        );
-
-      if (input.assignments.length > 0) {
-        await db.insert(scheduleAssignments).values(
-          input.assignments.map(assignment => ({
-            parishId: ctx.parishId,
-            scheduleId: schedule.id,
-            celebrationId: input.celebrationId,
-            serverId: assignment.serverId,
-            parishRoleId: assignment.parishRoleId,
-            status: "PENDING" as const,
-            assignmentSource: "MANUAL" as const,
-            notes: assignment.notes ?? null,
-            assignedByUserId:
-              ctx.actor.type === "USER" ? ctx.actor.user.id : null,
-          }))
-        );
-      }
+      await db.transaction(async tx => {
+        // Share the celebration lock with substitution approval.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${ctx.parishId},${input.celebrationId})`);
+        const previous = await tx.select().from(scheduleAssignments).where(and(
+          eq(scheduleAssignments.scheduleId, schedule.id),
+          eq(scheduleAssignments.parishId, ctx.parishId),
+          inArray(scheduleAssignments.status, ["PENDING", "CONFIRMED"]),
+        ));
+        const key = (row: { serverId: number; parishRoleId: number }) => `${row.serverId}:${row.parishRoleId}`;
+        const wanted = new Set(input.assignments.map(key));
+        const kept = new Set<string>();
+        const cancel: number[] = [];
+        previous.sort((a, b) => Number(b.status === "CONFIRMED") - Number(a.status === "CONFIRMED") || a.id - b.id);
+        for (const row of previous) {
+          const id = key(row);
+          if (wanted.has(id) && !kept.has(id)) kept.add(id);
+          else cancel.push(row.id);
+        }
+        if (cancel.length) await tx.update(scheduleAssignments).set({ status: "CANCELLED" }).where(and(
+          eq(scheduleAssignments.parishId, ctx.parishId), inArray(scheduleAssignments.id, cancel),
+        ));
+        const added = input.assignments.filter(row => !kept.has(key(row)));
+        if (added.length) await tx.insert(scheduleAssignments).values(added.map(assignment => ({
+          parishId: ctx.parishId,
+          scheduleId: schedule.id,
+          celebrationId: input.celebrationId,
+          serverId: assignment.serverId,
+          parishRoleId: assignment.parishRoleId,
+          status: "PENDING" as const,
+          assignmentSource: "MANUAL" as const,
+          notes: assignment.notes ?? null,
+          assignedByUserId: ctx.actor.type === "USER" ? ctx.actor.user.id : null,
+        })));
+      });
 
       await recordAudit(ctx.actor, {
         action: "SCHEDULE_UPDATED",

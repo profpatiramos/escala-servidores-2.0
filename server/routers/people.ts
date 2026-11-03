@@ -48,9 +48,10 @@ import {
 import { getDbOrThrow } from "../db";
 import { recordAudit } from "../services/audit";
 import { issueAccessCode } from "../services/accessCodes";
-import { enableResponsibleLogin } from "../services/responsibleLogin";
+import { enableResponsibleLogin, setResponsibleCoordination } from "../services/responsibleLogin";
 import {
   badRequest,
+  forbidden,
   coordinatorProcedure,
   notFound,
   parishAdminProcedure,
@@ -99,24 +100,32 @@ export const peopleRouter = router({
           id: z.number().int().positive(),
           email: z.string().trim().email("E-mail inválido.").max(320),
           temporaryPassword: z.string().max(128),
+          coordinator: z.boolean().default(false),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        if (input.coordinator && !["SUPER_ADMIN", "PARISH_ADMIN"].includes(ctx.actor.role)) throw forbidden("Somente a administração pode conceder acesso à coordenação.");
         const result = await enableResponsibleLogin({
           parishId: ctx.parishId,
           responsibleId: input.id,
           email: input.email,
           temporaryPassword: input.temporaryPassword,
+          coordinator: input.coordinator,
         });
         await recordAudit(ctx.actor, {
           action: "RESPONSIBLE_UPDATED",
           entityType: "responsible",
           entityId: input.id,
-          metadata: { loginEnabled: true },
+          metadata: { loginEnabled: true, coordinator: input.coordinator },
           ...requestMeta(ctx),
         });
         return result;
       }),
+    setCoordination: parishAdminProcedure.input(z.object({ id: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
+      const result = await setResponsibleCoordination({ parishId: ctx.parishId, responsibleId: input.id, enabled: input.enabled });
+      await recordAudit(ctx.actor, { action: "RESPONSIBLE_UPDATED", entityType: "responsible", entityId: input.id, metadata: { coordinator: input.enabled }, ...requestMeta(ctx) });
+      return result;
+    }),
     /** Lista os responsáveis da paróquia com a contagem de dependentes ativos. */
     list: coordinatorProcedure
       .input(
@@ -152,6 +161,9 @@ export const peopleRouter = router({
 
         if (rows.length === 0) return [];
 
+        const coordination = await db.select({ userId: parishMembers.userId }).from(parishMembers).where(and(eq(parishMembers.parishId, ctx.parishId), eq(parishMembers.role, "COORDINATOR"), eq(parishMembers.status, "ACTIVE")));
+        const coordinatorIds = new Set(coordination.map(m => m.userId));
+
         const dependentCounts = await db
           .select({ responsibleId: familyLinks.responsibleId, total: count() })
           .from(familyLinks)
@@ -173,6 +185,7 @@ export const peopleRouter = router({
         return rows.map(row => ({
           ...row,
           dependents: countMap.get(row.id) ?? 0,
+          coordinator: row.userId !== null && coordinatorIds.has(row.userId),
         }));
       }),
 
@@ -194,12 +207,15 @@ export const peopleRouter = router({
           notes: z.string().trim().max(1000).optional().nullable(),
           /** Quando informado, cria a conta de acesso do responsável. */
           temporaryPassword: z.string().optional().nullable(),
+          coordinator: z.boolean().default(false),
           serverId: z.number().int().positive().optional(),
           relationshipType: z.enum(RELATIONSHIP_TYPES).default("GUARDIAN"),
           isPrimary: z.boolean().default(false),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        if (input.coordinator && !["SUPER_ADMIN", "PARISH_ADMIN"].includes(ctx.actor.role)) throw forbidden("Somente a administração pode conceder acesso à coordenação.");
+        if (input.coordinator && !input.temporaryPassword) throw badRequest("Informe e-mail e senha provisória para habilitar também o acesso à coordenação.");
         const db = await getDbOrThrow();
         const email = input.email?.toLowerCase() ?? null;
 
@@ -275,6 +291,7 @@ export const peopleRouter = router({
                   status: "ACTIVE",
                 });
               }
+              if (input.coordinator) await db.insert(parishMembers).values({ parishId: ctx.parishId, userId: existing.id, role: "COORDINATOR", status: "ACTIVE" }).onConflictDoUpdate({ target: [parishMembers.parishId, parishMembers.userId, parishMembers.role], set: { status: "ACTIVE" } });
             }
           }
 
@@ -323,6 +340,7 @@ export const peopleRouter = router({
           metadata: {
             name: input.name,
             hasAccount: created.hasAccount,
+            coordinator: input.coordinator,
             serverId: input.serverId ?? null,
           },
           ...requestMeta(ctx),

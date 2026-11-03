@@ -43,7 +43,7 @@ export const monthlyConfigSchema = z
               .array(
                 z.object({
                   serverId: z.number().int().positive(),
-                  parishRoleId: z.number().int().positive(),
+                  parishRoleId: z.number().int().nonnegative(),
                 })
               )
               .max(50),

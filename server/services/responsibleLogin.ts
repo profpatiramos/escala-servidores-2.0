@@ -10,6 +10,7 @@ export async function enableResponsibleLogin(input: {
   responsibleId: number;
   email: string;
   temporaryPassword: string;
+  coordinator?: boolean;
 }) {
   const strength = validatePasswordStrength(
     input.temporaryPassword,
@@ -65,12 +66,17 @@ export async function enableResponsibleLogin(input: {
       throw badRequest(
         "Este e-mail já está associado a uma conta. Atualize a página e confira os dados."
       );
-    await tx
-      .insert(parishMembers)
-      .values({
+    await tx.insert(parishMembers).values({
+      parishId: input.parishId,
+      userId: created.id,
+      role: "RESPONSIBLE",
+      status: "ACTIVE",
+    });
+    if (input.coordinator)
+      await tx.insert(parishMembers).values({
         parishId: input.parishId,
         userId: created.id,
-        role: "RESPONSIBLE",
+        role: "COORDINATOR",
         status: "ACTIVE",
       });
     await tx
@@ -82,6 +88,74 @@ export async function enableResponsibleLogin(input: {
           eq(responsibles.parishId, input.parishId)
         )
       );
+    return { success: true as const };
+  });
+}
+
+/** Adds/removes only coordination; keeps the responsible account and family links. */
+export async function setResponsibleCoordination(input: {
+  parishId: number;
+  responsibleId: number;
+  enabled: boolean;
+}) {
+  const db = await getDbOrThrow();
+  return db.transaction(async tx => {
+    const [responsible] = await tx
+      .select()
+      .from(responsibles)
+      .where(
+        and(
+          eq(responsibles.id, input.responsibleId),
+          eq(responsibles.parishId, input.parishId)
+        )
+      )
+      .limit(1)
+      .for("update");
+    if (!responsible) throw notFound("Responsável");
+    if (!responsible.userId)
+      throw badRequest(
+        "Habilite o login do responsável antes de definir o acesso à coordenação."
+      );
+    if (input.enabled) {
+      if (responsible.status !== "ACTIVE")
+        throw badRequest(
+          "Ative o cadastro do responsável antes de habilitar a coordenação."
+        );
+      const [user] = await tx
+        .select({ status: users.status })
+        .from(users)
+        .where(eq(users.id, responsible.userId))
+        .limit(1);
+      if (!user || user.status !== "ACTIVE")
+        throw badRequest("A conta de acesso do responsável não está ativa.");
+      await tx
+        .insert(parishMembers)
+        .values({
+          parishId: input.parishId,
+          userId: responsible.userId,
+          role: "COORDINATOR",
+          status: "ACTIVE",
+        })
+        .onConflictDoUpdate({
+          target: [
+            parishMembers.parishId,
+            parishMembers.userId,
+            parishMembers.role,
+          ],
+          set: { status: "ACTIVE" },
+        });
+    } else {
+      await tx
+        .update(parishMembers)
+        .set({ status: "INACTIVE" })
+        .where(
+          and(
+            eq(parishMembers.parishId, input.parishId),
+            eq(parishMembers.userId, responsible.userId),
+            eq(parishMembers.role, "COORDINATOR")
+          )
+        );
+    }
     return { success: true as const };
   });
 }

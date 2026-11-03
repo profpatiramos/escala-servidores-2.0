@@ -35,6 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduleStatusBadge } from "@/pages/Dashboard";
 import { errorMessage, formatDateLong, formatTime } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
+import CelebrationTeamBadge from "@/components/CelebrationTeamBadge";
 import CelebrationNeeds from "@/components/CelebrationNeeds";
 
 type DraftAssignment = {
@@ -67,6 +68,13 @@ export default function CelebrationDetail() {
     { enabled: picker !== null },
   );
 
+  const addUnassigned = trpc.schedules.celebrations.addUnassignedSlot.useMutation({
+    onSuccess: async ({ parishRoleId }) => {
+      await utils.schedules.invalidate();
+      setPicker({ parishRoleId, roleName: "Não definida" });
+    },
+    onError: error => toast.error(errorMessage(error)),
+  });
   const setAssignments = trpc.schedules.setAssignments.useMutation({
     onSuccess: result => {
       void utils.schedules.invalidate();
@@ -105,7 +113,9 @@ export default function CelebrationDetail() {
   // A lista efetiva é o rascunho local quando existe; caso contrário, o que veio do servidor.
   const current: DraftAssignment[] = useMemo(() => {
     if (draft) return draft;
-    return (detail.data?.assignments ?? []).map(a => ({
+    return (detail.data?.assignments ?? [])
+      .filter(a => a.status === "PENDING" || a.status === "CONFIRMED")
+      .map(a => ({
       serverId: a.serverId,
       serverName: a.serverName,
       parishRoleId: a.parishRoleId,
@@ -160,6 +170,7 @@ export default function CelebrationDetail() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <CelebrationTeamBadge color={celebration.notes?.match(/^Escala mensal\. Equipe (verde|azul)\./i)?.[1].toLowerCase()} />
             <ScheduleStatusBadge status={schedule?.status ?? null} />
             {schedule && schedule.version > 1 && (
               <Badge variant="outline">versão {schedule.version}</Badge>
@@ -169,6 +180,8 @@ export default function CelebrationDetail() {
       </div>
 
       <CelebrationNeeds celebrationId={celebrationId} needs={needs} assignedRoleIds={current.map(a => a.parishRoleId)} />
+
+      <Button variant="outline" disabled={addUnassigned.isPending} onClick={() => addUnassigned.mutate({ celebrationId })}>Escalar sem função definida</Button>
 
       {isPublished && (
         <Alert>
@@ -361,8 +374,7 @@ export default function CelebrationDetail() {
           <DialogHeader>
             <DialogTitle>Escalar em {picker?.roleName}</DialogTitle>
             <DialogDescription>
-              A lista mostra apenas quem está apto e disponível, ordenado por
-              preferência de horário e menor carga recente.
+              A lista inclui os servidores ativos. Quando alguém não pode servir nesta função ou horário, o motivo aparece junto ao nome.
             </DialogDescription>
           </DialogHeader>
 
@@ -395,7 +407,8 @@ export default function CelebrationDetail() {
                   <li key={candidate.serverId}>
                     <button
                       type="button"
-                      className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+                      disabled={!!candidate.blockedReason}
+                      className="flex w-full disabled:opacity-60 items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
                       onClick={() => {
                         if (!picker) return;
                         setDraft([
@@ -413,7 +426,7 @@ export default function CelebrationDetail() {
                       <div>
                         <p className="text-sm font-medium">{candidate.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {candidate.age} anos · {candidate.recentAssignments} escalas recentes
+                          {candidate.blockedReason ?? `${candidate.age} anos · ${candidate.recentAssignments} escalas recentes`}
                         </p>
                       </div>
                       {candidate.preferenceScore > 0 && (

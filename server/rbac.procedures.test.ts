@@ -197,11 +197,10 @@ describe("responsibleProcedure", () => {
     );
   });
 
-  it("recusa coordenador tentando usar a rota do responsável", async () => {
-    await expectCode(
-      callerFor(userActor({ role: "COORDINATOR", responsibleId: 55 })).responsible(),
-      "FORBIDDEN",
-    );
+  it("mantém o acesso familiar de um coordenador com vínculo de responsável", async () => {
+    await expect(callerFor(userActor({ role: "COORDINATOR", responsibleId: 55 })).responsible())
+      .resolves.toEqual({ responsibleId: 55 });
+    await expectCode(callerFor(userActor({ role: "COORDINATOR" })).responsible(), "FORBIDDEN");
   });
 });
 

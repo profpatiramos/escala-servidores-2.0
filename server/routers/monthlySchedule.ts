@@ -16,6 +16,8 @@ import { badRequest, coordinatorProcedure, router } from "../trpc";
 import { schedulesRouter } from "./schedules";
 import { recordAudit } from "../services/audit";
 
+import { ensureUnassignedRole } from "../services/unassignedRole";
+
 export const monthlyScheduleRouter = router({
   config: coordinatorProcedure.query(async ({ ctx }) => {
     const db = await getDbOrThrow();
@@ -37,7 +39,7 @@ export const monthlyScheduleRouter = router({
       ];
       const roleIds = [
         ...new Set(
-          input.teams.flatMap(t => t.members.map(m => m.parishRoleId))
+          input.teams.flatMap(t => t.members.map(m => m.parishRoleId)).filter(Boolean)
         ),
       ];
       if (serverIds.length) {
@@ -99,6 +101,11 @@ export const monthlyScheduleRouter = router({
       if (!parsed.success)
         throw badRequest("Salve as equipes antes de gerar o mês.");
       const config = parsed.data;
+      if (config.teams.some(t => t.members.some(m => m.parishRoleId === 0))) {
+        const fallbackId = await ensureUnassignedRole(ctx.parishId);
+        for (const team of config.teams) for (const member of team.members)
+          if (member.parishRoleId === 0) member.parishRoleId = fallbackId;
+      }
       const api = schedulesRouter.createCaller(ctx);
       const results: {
         date: string;

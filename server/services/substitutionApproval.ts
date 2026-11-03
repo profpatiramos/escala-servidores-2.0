@@ -58,6 +58,11 @@ export async function approveSubstitution(params: {
     }
     if (request.status !== "PENDING")
       throw badRequest("Esta solicitação já foi analisada.");
+    // Acquire the celebration lock before locking an assignment, just as schedule edits do.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${params.parishId}, (
+      SELECT "celebrationId" FROM schedule_assignments
+      WHERE id = ${request.assignmentId} AND "parishId" = ${params.parishId}
+    ))`);
     const [original] = await tx
       .select()
       .from(scheduleAssignments)
@@ -74,11 +79,6 @@ export async function approveSubstitution(params: {
       throw badRequest("Esta alocação não permite substituição.");
     if (original.serverId === params.replacementServerId)
       throw badRequest("O substituto deve ser diferente do servidor original.");
-    // Serialize approvals for the same celebration, including different requests.
-    // The general validator checks other celebrations, not existing rows in this one.
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(${params.parishId},${original.celebrationId})`
-    );
     const [alreadyAssigned] = await tx
       .select({ id: scheduleAssignments.id })
       .from(scheduleAssignments)

@@ -107,6 +107,23 @@ describe("habilitar login de responsável existente", () => {
     expect(scopes[0]).toEqual([17, 7]);
     expect(scopes.at(-1)).toEqual([17, 7]);
   });
+  it("mantém os dois papéis ao ativar login com coordenação", async () => {
+    await enableResponsibleLogin({ ...input, coordinator: true });
+    expect(committed.filter(w => w.table === parishMembers).map(w => w.value.role))
+      .toEqual(["RESPONSIBLE", "COORDINATOR"]);
+    expect(committed.at(-1)?.table).toBe(responsibles);
+  });
+  it("impede que um coordenador conceda esse mesmo papel", async () => {
+    const caller = peopleRouter.createCaller({
+      actor: { type: "USER", user: { id: 5 }, parishId: 7, role: "COORDINATOR" },
+      req: { headers: {} }, res: {}, user: null,
+    } as any);
+    await expect(caller.responsibles.setCoordination({ id: 17, enabled: true }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.responsibles.enableLogin({ id: 17, email: "pai@example.test", temporaryPassword: "Provisoria123", coordinator: true }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(mocks.db).not.toHaveBeenCalled();
+  });
   it("não altera conta já existente nem sua senha", async () => {
     existing = true;
     await expect(enableResponsibleLogin(input)).rejects.toMatchObject({

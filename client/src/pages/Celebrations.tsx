@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import CelebrationTeamBadge from "@/components/CelebrationTeamBadge";
 import { ScheduleStatusBadge } from "@/pages/Dashboard";
 import { errorMessage, formatDateLong, formatTime } from "@/lib/format";
 import { trpc } from "@/lib/trpc";
@@ -184,6 +185,7 @@ export default function Celebrations() {
                         Celebração cancelada
                       </span>
                     )}
+                    <CelebrationTeamBadge color={celebration.teamColor} />
                     <ScheduleStatusBadge status={celebration.scheduleStatus} />
                   </div>
                 </div>
